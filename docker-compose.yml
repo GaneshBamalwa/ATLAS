@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  orchestrator:
+    build:
+      context: ./services/orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "9000:9000"
+    env_file: .env
+    depends_on:
+      - google-mcp
+      - memory
+
+  google-mcp:
+    build:
+      context: ./services/google-mcp
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./services/google-mcp/tokens:/app/tokens
+      - ./services/google-mcp/downloads:/app/downloads
+
+  agent-daemon:
+    build:
+      context: ./services/agent-daemon
+      dockerfile: Dockerfile
+    ports:
+      - "9001:9001"
+    env_file: .env
+    depends_on:
+      - orchestrator
+      - google-mcp
+
+  memory:
+    build:
+      context: ./services/memory
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    env_file: .env
+    volumes:
+      - ./services/memory/chroma_db:/app/chroma_db
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  web-console:
+    build:
+      context: ./apps/web-console
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_ORCHESTRATOR_URL=http://localhost:9000
+    depends_on:
+      - orchestrator

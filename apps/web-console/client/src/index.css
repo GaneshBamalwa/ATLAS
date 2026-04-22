@@ -1,0 +1,427 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --primary: #007AFF;
+  --primary-foreground: #F2F2F2;
+  --sidebar-primary: #007AFF;
+  --sidebar-primary-foreground: #F2F2F2;
+  --chart-1: #007AFF;
+  --chart-2: #BF5AF2;
+  --chart-3: #64D2FF;
+  --chart-4: #30B0C0;
+  --chart-5: #5AC8FA;
+  --radius: 0.75rem;
+  --background: #050505;
+  --foreground: #F2F2F2;
+  --card: rgba(255, 255, 255, 0.04);
+  --card-foreground: #F2F2F2;
+  --popover: rgba(255, 255, 255, 0.04);
+  --popover-foreground: #F2F2F2;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #A1A1AA;
+  --muted: rgba(255, 255, 255, 0.04);
+  --muted-foreground: #A1A1AA;
+  --accent: #BF5AF2;
+  --accent-foreground: #F2F2F2;
+  --destructive: #FF3B30;
+  --destructive-foreground: #F2F2F2;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.06);
+  --ring: #007AFF;
+  --sidebar: rgba(255, 255, 255, 0.02);
+  --sidebar-foreground: #F2F2F2;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #F2F2F2;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #007AFF;
+
+  /* ============================================
+     DEPTH LAYER SYSTEM (3-Layer Architecture)
+     ============================================ */
+  
+  /* BACKGROUND LAYER (Ambient, Static) */
+  --depth-bg-primary: #050505;
+  --depth-bg-secondary: #0A0A0B;
+  --depth-bg-tertiary: #0F0F11;
+  
+  /* MIDGROUND LAYER (Glass Panels, Floating) */
+  --glass-blur-sm: 12px;
+  --glass-blur-md: 20px;
+  --glass-blur-lg: 32px;
+  
+  /* Glass opacity levels for layering */
+  --glass-opacity-thin: rgba(255, 255, 255, 0.02);
+  --glass-opacity-light: rgba(255, 255, 255, 0.04);
+  --glass-opacity-medium: rgba(255, 255, 255, 0.06);
+  --glass-opacity-heavy: rgba(255, 255, 255, 0.08);
+  
+  /* Glass border system */
+  --glass-border-thin: rgba(255, 255, 255, 0.06);
+  --glass-border-standard: rgba(255, 255, 255, 0.10);
+  --glass-border-highlight: rgba(255, 255, 255, 0.15);
+  
+  /* FOREGROUND LAYER (Interactive, Bright) */
+  --foreground-primary: #F2F2F2;
+  --foreground-secondary: #D4D4D8;
+  --foreground-tertiary: #A1A1AA;
+  
+  /* ============================================
+     LIGHTING SYSTEM (Top-Left Soft Light)
+     ============================================ */
+  
+  /* Inner shadows for depth (light from top-left) */
+  --light-inner-shadow-sm: inset 0 1px 2px rgba(255, 255, 255, 0.08);
+  --light-inner-shadow-md: inset 0 2px 4px rgba(255, 255, 255, 0.10);
+  --light-inner-shadow-lg: inset 0 4px 8px rgba(255, 255, 255, 0.12);
+  
+  /* Edge highlights (top and left edges catch light) */
+  --light-edge-top: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
+  --light-edge-left: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%);
+  
+  /* Glow accents (soft illumination) */
+  --glow-blue: rgba(0, 122, 255, 0.4);
+  --glow-purple: rgba(191, 90, 242, 0.4);
+  --glow-cyan: rgba(100, 210, 255, 0.3);
+  
+  /* ============================================
+     SHADOW SYSTEM (Depth & Elevation)
+     ============================================ */
+  
+  /* Shadows increase with elevation */
+  --shadow-elevation-1: 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-elevation-2: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-elevation-3: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-elevation-4: 0 12px 32px rgba(0, 0, 0, 0.7);
+  --shadow-elevation-5: 0 20px 48px rgba(0, 0, 0, 0.8);
+  
+  /* ============================================
+     ACCENT COLORS (Glow & Interaction)
+     ============================================ */
+  
+  --accent-blue: #007AFF;
+  --accent-purple: #BF5AF2;
+  --accent-cyan: #64D2FF;
+  --accent-green: #32D74B;
+  --accent-red: #FF3B30;
+  
+  /* ============================================
+     ANIMATION TIMING (Spring Physics)
+     ============================================ */
+  
+  /* Stiffness: 300 = responsive, 200 = soft, 400 = snappy */
+  /* Damping: 25-30 = smooth, 20 = bouncy, 35+ = rigid */
+  
+  --spring-responsive: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --spring-soft: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --spring-snappy: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.dark {
+  --primary: #007AFF;
+  --primary-foreground: #F2F2F2;
+  --sidebar-primary: #007AFF;
+  --sidebar-primary-foreground: #F2F2F2;
+  --background: #050505;
+  --foreground: #F2F2F2;
+  --card: rgba(255, 255, 255, 0.04);
+  --card-foreground: #F2F2F2;
+  --popover: rgba(255, 255, 255, 0.04);
+  --popover-foreground: #F2F2F2;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #A1A1AA;
+  --muted: rgba(255, 255, 255, 0.04);
+  --muted-foreground: #A1A1AA;
+  --accent: #BF5AF2;
+  --accent-foreground: #F2F2F2;
+  --destructive: #FF3B30;
+  --destructive-foreground: #F2F2F2;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.06);
+  --ring: #007AFF;
+  --chart-1: #007AFF;
+  --chart-2: #BF5AF2;
+  --chart-3: #64D2FF;
+  --chart-4: #30B0C0;
+  --chart-5: #5AC8FA;
+  --sidebar: rgba(255, 255, 255, 0.02);
+  --sidebar-foreground: #F2F2F2;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #F2F2F2;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #007AFF;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  /**
+   * GLASS PANEL SYSTEM
+   * True glassmorphism with exact blur, opacity, and lighting
+   */
+  
+  .glass-base {
+    backdrop-filter: blur(var(--glass-blur-md)) saturate(150%);
+    border: 1px solid var(--glass-border-standard);
+    box-shadow: var(--light-inner-shadow-md);
+  }
+  
+  .glass-thin {
+    background: var(--glass-opacity-thin);
+    backdrop-filter: blur(var(--glass-blur-sm)) saturate(150%);
+    border: 1px solid var(--glass-border-thin);
+    box-shadow: var(--light-inner-shadow-sm);
+  }
+  
+  .glass-light {
+    background: var(--glass-opacity-light);
+    backdrop-filter: blur(var(--glass-blur-md)) saturate(150%);
+    border: 1px solid var(--glass-border-standard);
+    box-shadow: var(--light-inner-shadow-md);
+  }
+  
+  .glass-medium {
+    background: var(--glass-opacity-medium);
+    backdrop-filter: blur(var(--glass-blur-md)) saturate(150%);
+    border: 1px solid var(--glass-border-standard);
+    box-shadow: var(--light-inner-shadow-md);
+  }
+  
+  .glass-heavy {
+    background: var(--glass-opacity-heavy);
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(150%);
+    border: 1px solid var(--glass-border-highlight);
+    box-shadow: var(--light-inner-shadow-lg);
+  }
+  
+  /* Edge highlight overlay (top-left light source) */
+  .glass-light-edge::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+    border-radius: inherit;
+  }
+  
+  /**
+   * DEPTH ELEVATION SYSTEM
+   * Shadows increase with z-index and interaction state
+   */
+  
+  .elevation-1 {
+    box-shadow: var(--shadow-elevation-1);
+  }
+  
+  .elevation-2 {
+    box-shadow: var(--shadow-elevation-2);
+  }
+  
+  .elevation-3 {
+    box-shadow: var(--shadow-elevation-3);
+  }
+  
+  .elevation-4 {
+    box-shadow: var(--shadow-elevation-4);
+  }
+  
+  .elevation-5 {
+    box-shadow: var(--shadow-elevation-5);
+  }
+  
+  /**
+   * GLOW SYSTEM
+   * Soft illumination for interactive states
+   */
+  
+  .glow-blue {
+    box-shadow: 0 0 20px var(--glow-blue), var(--light-inner-shadow-md);
+  }
+  
+  .glow-purple {
+    box-shadow: 0 0 20px var(--glow-purple), var(--light-inner-shadow-md);
+  }
+  
+  .glow-cyan {
+    box-shadow: 0 0 20px var(--glow-cyan), var(--light-inner-shadow-md);
+  }
+  
+  /**
+   * TYPOGRAPHY SYSTEM
+   * Hierarchy with weight and spacing
+   */
+  
+  .font-display {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  
+  .font-heading {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+  
+  .font-subheading {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  
+  .font-body {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+  
+  .font-caption {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+  }
+  
+  .font-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+  
+  /**
+   * SPACING SYSTEM
+   * 8px grid-based with responsive adjustments
+   */
+  
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      max-width: 1280px;
+    }
+  }
+}
+
+/* ============================================
+   BACKGROUND LAYERS (Ambient Environment)
+   ============================================ */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(191, 90, 242, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(0, 122, 255, 0.08) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Smooth Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  backdrop-filter: blur(8px);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
