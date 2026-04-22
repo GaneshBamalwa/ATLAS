@@ -31,7 +31,6 @@ BANNER = r"""
 
 @app.on_event("startup")
 async def startup_event():
-    print(BANNER)
     logger.info("Initializing ATLAS Multi-Service Orchestrator...")
     logger.info(f"LLM Engine: {settings.llm_model}")
     logger.info(f"Targeting MCP: {settings.gmail_mcp_base_url}")
@@ -121,7 +120,7 @@ async def chat_endpoint(chat_request: ChatRequest, request: Request):
                 "drive_user_id": chat_request.drive_user_id,
                 "calendar_user_id": chat_request.calendar_user_id
             }
-            print(f"[ENGINE] Routing to LANGRAPH engine (Session: {session_id})")
+            logger.info(f"[ENGINE] Routing to LANGRAPH engine (Session: {session_id})")
             result = await run_workflow(chat_request.message, history=chat_request.history, context=user_context, execution_id=session_id)
             
             # Re-fetch the trace from tracker to send back enriched steps
@@ -150,13 +149,13 @@ async def chat_endpoint(chat_request: ChatRequest, request: Request):
             return ChatResponse(response=f"Error: {str(e)}", response_type="error", trace=trace, session_id=session_id)
 
     # ─── Legacy Reasoning Loop (ReAct / Chaining) ─────────────────────────────
-    print(f"[ENGINE] Routing to LEGACY standard engine (Session: {session_id})")
+    logger.info(f"[ENGINE] Routing to LEGACY standard engine (Session: {session_id})")
     max_loops = 10
     loop_count = 0
     current_message = chat_request.message
     
-    print(f"\n[ORCHESTRATOR] New query: {current_message}")
-    print(f"[ORCHESTRATOR] Session ID: {session_id}")
+    logger.info(f"[ORCHESTRATOR] New query: {current_message}")
+    logger.info(f"[ORCHESTRATOR] Session ID: {session_id}")
     
     current_history = list(chat_request.history) if chat_request.history else []
     executed_actions = []
@@ -179,7 +178,7 @@ async def chat_endpoint(chat_request: ChatRequest, request: Request):
         
         route_time = (time.perf_counter() - route_start) * 1000
         emit_trace_event(session_id, step_id, "success", outputs={"decision": decision.dict()}, latency=route_time)
-        print(f" -> Loop {loop_count}: {decision.dict()}")
+        logger.info(f" -> Loop {loop_count}: {decision.dict()}")
 
         if decision.requires_tool:
             tool_call = decision.tool_call
@@ -214,7 +213,7 @@ async def chat_endpoint(chat_request: ChatRequest, request: Request):
         trace.steps.append(step_exec)
         
         emit_trace_event(session_id, exec_id, "running", node_type="mcp_tool", name=f"Tool: {tool_call.tool}", inputs=tool_call.arguments)
-        print(f" -> Executing tool: {tool_call.tool} with args: {tool_call.arguments}")
+        logger.info(f" -> Executing tool: {tool_call.tool} with args: {tool_call.arguments}")
 
         # Normal Execute
         exec_start = time.perf_counter()
@@ -237,7 +236,7 @@ async def chat_endpoint(chat_request: ChatRequest, request: Request):
         executed_actions.append(action_log)
         
         step_exec.status = "completed" if tool_response.success else "failed"
-        print(f" -> Tool result: {'SUCCESS' if tool_response.success else 'FAILED'}")
+        logger.info(f" -> Tool result: {'SUCCESS' if tool_response.success else 'FAILED'}")
         
         emit_trace_event(
             session_id, 

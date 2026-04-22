@@ -1,76 +1,93 @@
-# How to Start ATLAS Orchestration Project
+# ATLAS Deployment and Startup Guide
 
-You can start **ATLAS** using either **Docker Compose** (recommended for running everything at once) or by running the services **individually**.
+This document provides comprehensive instructions for deploying and initializing the ATLAS Orchestration ecosystem. The platform supports both containerized deployment via Docker and manual service execution for local development.
 
-## Option 1: Docker Compose (All-in-One)
+---
 
-This is the easiest way to start the entire ATLAS stack (Orchestrator, Google MCP, Memory, Redis, and Web Console).
+## Deployment Option 1: Docker Compose (Recommended)
 
-From the root project directory (`G:\MCPs\fresh`), run:
+Docker Compose is the preferred method for production-like environments, ensuring all microservices (Orchestrator, Google MCP, Memory, Redis, and Web Console) are initialized with correct networking and environment configurations.
+
+Execute the following command from the root directory:
 
 ```bash
 docker-compose up --build
 ```
 
-## Option 2: Run Services Individually
+Access the integrated Web Console at: `http://localhost:5173`
 
-If you prefer to run the services individually for development/debugging, you will need separate terminal windows for each service.
+---
 
-**Note:** Ensure you activate your python virtual environment (`venv\Scripts\activate`) for the python services.
+## Deployment Option 2: Local Service Execution
 
-### 1. ATLAS Central Orchestrator
+For development and debugging, services can be executed independently. Ensure all dependencies are installed and the appropriate virtual environments are activated.
+
+### 1. Central Orchestrator
+The core reasoning engine manages tool-use and interaction flows.
 ```bash
 cd services/orchestrator
 uvicorn app.main:app --reload --port 9000
 ```
-*(Currently running on port 9000)*
 
 ### 2. Google MCP Service
+The protocol bridge for Google Workspace integrations.
 ```bash
 cd services/google-mcp
 uvicorn backend.main:app --reload --port 8000
 ```
 
-### 3. ATLAS Web Console (Frontend)
-Make sure you are in `apps/web-console`, not in any of the services folders!
-
-```bash
-cd apps/web-console
-pnpm install   # If dependencies are not installed yet
-pnpm run dev
-```
-
-### 4. Memory Service (Required)
-The memory/RAG component stores context and behavioral tracking data:
+### 3. Memory Service
+Provides semantic storage and factual persistence. Requires a running Redis instance.
 ```bash
 cd services/memory
 uvicorn app.main:app --reload --port 8002
 ```
-*(Note: Requires a running Redis instance as defined in docker-compose)*
 
-### 5. Proactive Intelligence Daemon (PID)
-The autonomous background agent daemon tracks context and pushes suggestions via WebSocket:
+### 4. Agent Daemon
+Manages proactive notifications and background monitoring via WebSockets.
 ```bash
 cd services/agent-daemon
 uvicorn app.main:app --reload --port 9001
 ```
 
+### 5. Web Console (Frontend)
+The primary interface for user interaction and system observability.
+```bash
+cd apps/web-console
+pnpm install
+pnpm run dev
+```
+
 ---
 
-## 🌐 External API Dependencies
+## External Infrastructure Dependencies
 
-ATLAS relies on the following external services to function. When the services are running, they will make internet-bound API calls to these providers:
+ATLAS utilizes external service providers for high-performance inference and data access.
 
-### 1. LLM / AI Providers (Orchestrator & Agent Daemon)
-The `central-orchestrator` and `agent-daemon` services communicate with external AI inference providers to power reasoning loops and proactive decision making.
-- **Who it calls:** **Groq** (`api.groq.com`) or **OpenRouter** (`openrouter.ai`) depending on your `.env` configuration.
-- **What it sends:** System prompts, conversation history (minus actual PII from unconnected services), and tool action results to get the next step or final answer.
+### 1. AI Inference Providers
+The Orchestrator and Agent Daemon utilize external LLM APIs for reasoning and planning.
+- **Providers**: Groq (`api.groq.com`), OpenAI (`api.openai.com`), or OpenRouter (`openrouter.ai`).
+- **Data Exchange**: System instructions, sanitized conversation history, and tool schemas are transmitted to generate next-step actions.
 
-### 2. Google Workspace APIs (Google MCP)
-The `google-mcp` service talks directly to Google's backend. All operations here are strictly scoped to the user who authenticates via the Frontend console.
-- **Who it calls:** **Google Cloud / Workspace APIs** (`googleapis.com` / `oauth2.googleapis.com`).
-- **What it calls:**
-  - **Gmail API:** For reading unread counts, extracting email threads, and sending outgoing emails on behalf of the user.
-  - **Drive API:** For searching documents, reading file content, generating share links, and trashing files.
-  - **Calendar API:** For listing temporal events, identifying scheduling conflicts, and inserting new appointments. 
-- **Authentication:** These requests use OAuth2 Bearer Tokens acquired when the user connects their Google account via the web console.
+### 2. Google Workspace Ecosystem
+The Google MCP Service communicates directly with Google Cloud endpoints to perform user-authorized operations.
+- **Endpoint**: `googleapis.com` / `oauth2.googleapis.com`
+- **Scope of Operations**:
+    - **Gmail**: Message retrieval, thread summarization, and outbound drafting.
+    - **Drive**: Semantic file search, content extraction, and permission management.
+    - **Calendar**: Event lifecycle management and conflict detection.
+- **Authorization**: All requests are scoped to the specific user via OAuth 2.0 Bearer Tokens.
+
+---
+
+## Technical Prerequisites
+
+To ensure successful deployment, the following environment specifications must be met:
+
+| Requirement | Specification |
+| :--- | :--- |
+| **Operating System** | Linux, macOS, or Windows with WSL2 / PowerShell |
+| **Containerization** | Docker 20.10+ and Docker Compose v2 |
+| **Runtime Environments** | Python 3.10+ and Node.js 18+ |
+| **Package Managers** | pip, pnpm |
+| **Credentials** | Valid Google Cloud `credentials.json` in the appropriate service path |

@@ -1,135 +1,103 @@
-# ATLAS Project Architecture: Unified Google Workspace AI Orchestrator
+# ATLAS Technical Specifications
 
-This document provides a comprehensive deep-dive into the architecture, data flow, operational logic, and technological stack of the **ATLAS** AI Orchestration platform.
-
----
-
-## 🏗️ System Overview
-
-The **ATLAS** project is structured as a robust, modern, three-tier microservice architecture designed to provide an intelligent, unified natural language interface for various tools, starting with Google Workspace (Gmail, Drive, Calendar). 
-
-The system handles everything from intent recognition to independent execution and verification, all wrapped in a visually stunning interface.
-
-### 1. **Core Components**
-
-*   **ATLAS Web Console (`apps/web-console`)**:
-    *   **Tech Stack:** React 18, Vite, Typecript, plain CSS with some Tailwind for utilities.
-    *   **Role:** The user-facing client. Shows a highly polished, glassmorphic UI representing the "ATLAS" design language.
-    *   **Features:** Chat input, real-time message streaming, detailed execution tracing (showing users exactly what the AI is thinking and doing), and an independent settings panel for managing OAuth sessions.
-*   **ATLAS Central Orchestrator (`services/orchestrator`)**:
-    *   **Tech Stack:** FastAPI, Python 3.12+, Groq / OpenRouter.
-    *   **Role:** The "Brain". This service acts as the central router and ReAct reasoning engine. It does not perform operations directly; instead, it determines user intent, decides which tools to invoke, and chains operations together autonomously.
-*   **Unified Google MCP Service (`services/google-mcp`)**:
-    *   **Tech Stack:** FastAPI, Google Client API, OAuth2.
-    *   **Role:** The "Muscle". Provides a unified Model Context Protocol (MCP) compatible layer for Google services. Contains specialized tools for Gmail, Drive, and Calendar, executing them directly against Google's APIs.
-*   **ATLAS Memory Service (`services/memory` & Redis)**:
-    *   **Tech Stack:** FastAPI, ChromaDB, Redis.
-    *   **Role:** Handles long-term semantic memory, storing facts and preferences about the user locally to provide contextual personalization over time.
+This document provides a comprehensive technical deep-dive into the architecture, operational logic, data flow, and security protocols of the ATLAS AI Orchestration platform.
 
 ---
 
-## 🧠 The Orchestrator Logic (ReAct Loop)
+## System Architecture
 
-The central piece of this architecture is the LLM-driven **Reasoning & Acting (ReAct)** loop inside the Orchestrator. 
+ATLAS is implemented as a modern, three-tier microservice architecture designed to provide an intelligent natural language interface for multi-system automation.
 
-When a user submits a query:
+### 1. ATLAS Web Console
+- **Location**: `apps/web-console`
+- **Role**: Primary user interface and observability dashboard.
+- **Specifications**: React 18, Vite, TypeScript, and a bespoke glassmorphic design system.
+- **Key Features**: Real-time message streaming, live execution tracing, and session-based state management.
 
-1.  **Context Assembly:** The Orchestrator gathers system prompts, current datetime (for resolving relative dates like "tomorrow"), conversation history, and user authentication state.
-2.  **Intent Detection (LLM):** The router feeds the context to the LLM to decide: *Can I answer this directly, or do I need a tool?*
-3.  **Autonomous Chaining:**
-    *   If a tool is needed, the Orchestrator initiates an HTTP request to the respective service (e.g., Google MCP).
-    *   Upon receiving the result, the Orchestrator *feeds the result back into the LLM*.
-    *   The LLM reasoning continues: *Do I have enough information now? Do I need another tool?* (e.g., "I found the invoice on Drive, now I must email it via Gmail").
-4.  **Final Synthesis:** Once no more tools are required, the LLM constructs a final, human-readable response, which is streamed to the UI alongside the full "trace" of its actions.
+### 2. ATLAS Central Orchestrator
+- **Location**: `services/orchestrator`
+- **Role**: Central reasoning engine and task coordinator.
+- **Specifications**: FastAPI, Python 3.12+, LLM-driven ReAct loop.
+- **Key Features**: Intent recognition, autonomous task chaining, and response synthesis.
 
----
+### 3. Unified Google MCP Service
+- **Location**: `services/google-mcp`
+- **Role**: Protocol-compliant bridge for Google Workspace integration.
+- **Specifications**: FastAPI, Google API Client Library, OAuth 2.0.
+- **Key Features**: Standardized tool interface for Gmail, Drive, and Calendar operations.
 
-## 🛠️ Tool Registry & Service Boundaries
-
-The Orchestrator dynamically registers tools exposed by the MCP services via its `tool_registry.py`.
-
-### **1. Gmail Intelligence**
-*   **Semantic Search**: Converts natural language into Gmail Query Language (GQL).
-*   **Batch Intelligence**: Retrieves and categorizes multiple emails efficiently.
-*   **Resolute Drafting**: Generates professional subjects/bodies and dispatches emails.
-
-### **2. Google Drive Protocol**
-*   **Search & Retrieval**: Locates files by name, type, or internal content.
-*   **Cross-Service Chaining**: Seamlessly reads a document in Drive and extracts context for answering questions or drafting emails.
-
-### **3. Calendar Timeline**
-*   **Event Scheduling & Checking**: Lists and adds events.
-*   **Conflict Awareness**: Employs AI conflict resolution logic. Before an event is booked, the system checks for overlaps. If a conflict occurs, the LLM proposes alternate slots.
-*   **Post-Verification Mechanism**: Automatically verifies additions by listing the day's events *after* adding or modifying an event to ensure absolute accuracy.
+### 4. ATLAS Memory Service
+- **Location**: `services/memory`
+- **Role**: Semantic storage and historical context management.
+- **Specifications**: FastAPI, ChromaDB, Redis.
+- **Key Features**: Fact extraction, vector-based retrieval, and personalization.
 
 ---
 
-## 🔐 Security & Authentication
+## Orchestration Logic: The ReAct Loop
 
-*   **Independent Service Scopes**: Rather than clumping all Google permissions together, Gmail, Drive, and Calendar operate on distinct OAuth endpoints and token scopes.
-*   **Decoupled State**: Tokens are persisted separately in the `google-mcp/tokens` directory. Users can opt-in to specific services without needing to grant all permissions.
-*   **ID Forwarding**: The Frontend maintains an authentication session. Whenever it makes a request to the Orchestrator, it passes an `X-User-Id` header, which the Orchestrator forwards to the MCP service to load the correct individual OAuth payload.
+The system operates on a Recursive Reasoning and Acting (ReAct) paradigm, enabling the orchestrator to solve complex, multi-step problems through iterative cycles.
+
+1.  **Context Aggregation**: The Orchestrator gathers the user query, temporal metadata, conversation history, and user-scoped authentication state.
+2.  **Intent Decomposition**: The reasoning engine evaluates the input to determine if the query requires external data or tool execution.
+3.  **Autonomous Chaining**:
+    - If tool intervention is required, the Orchestrator dispatches a request to the appropriate MCP endpoint.
+    - The execution result is integrated back into the model's context.
+    - The loop repeats until the reasoning engine determines that sufficient information has been gathered to resolve the user's intent.
+4.  **Polished Synthesis**: A final processing layer transforms the aggregated data into a professional, human-readable response.
 
 ---
 
-## 📡 Networking & Ports map
+## Service Capabilities and Boundaries
 
-The ecosystem operates seamlessly both individually and within Docker Compose.
+The platform exposes specialized toolsets through its unified registry, ensuring clear boundaries between intent and execution.
 
-| Component | Port | Network Role / Accessibility |
+### Gmail Intelligence
+- **Semantic Analysis**: Converts natural language into Gmail Query Language (GQL) for precise message filtering.
+- **Automated Communication**: Manages the drafting and dispatching of professional emails with optimized tone and content.
+
+### Google Drive Protocol
+- **Content Retrieval**: Facilitates file discovery by metadata and internal text analysis.
+- **Cross-Service Data Flow**: Enables the extraction of context from Drive documents for downstream use in other integrations.
+
+### Calendar and Scheduling
+- **Intelligent Scheduling**: Validates availability and manages the event lifecycle.
+- **Conflict Resolution**: Employs automated reasoning to identify scheduling collisions and propose alternative time windows.
+- **State Verification**: Performs immediate post-action checks to ensure calendar integrity.
+
+---
+
+## Security and Authorization
+
+ATLAS implements a rigorous security model to protect user data and ensure authorized access.
+
+- **Granular Scopes**: Gmail, Drive, and Calendar operate with independent OAuth 2.0 scopes, allowing users to grant minimum necessary permissions.
+- **User-Scoped Persistence**: Authentication tokens are stored in isolated, user-specific payloads within the service infrastructure.
+- **Header-Based Authorization**: The Frontend transmits user identification via `X-User-Id` headers. The Orchestrator forwards this identifier to MCP services to load the corresponding OAuth credentials for each request.
+
+---
+
+## System Networking and Port Mapping
+
+| Component | Port | Accessibility |
 | :--- | :--- | :--- |
-| **ATLAS Web Console (Vite)** | `3000` | Exposes the application to the User. |
-| **ATLAS Orchestrator** | `9000` | Accepts Web Console API requests. |
-| **Google MCP** | `8000` | Internal API, accessed only by Orchestrator. |
-| **Memory Server** | `8002` | Internal API, providing ChromaDB access. |
-| **Redis** | `6379` | State persistence. |
+| **Web Console** | 5173 | Publicly accessible (User Interface) |
+| **Central Orchestrator** | 9000 | Accessible by Web Console |
+| **Google MCP Service** | 8000 | Accessible by Orchestrator |
+| **Memory Service** | 8002 | Accessible by Orchestrator |
+| **Agent Daemon** | 9001 | Accessible by Web Console (WebSocket) |
+| **Redis** | 6379 | Internal State Persistence |
 
 ---
 
-## 📋 Data Flow Example: "Review my resume in Drive and email John if it's ready"
+## Data Flow Lifecycle: Example Interaction
 
-1.  **Frontend (Port 3000):** Sends `{"message": "...", "user_id": "oauth_user"}`.
-2.  **Orchestrator (Port 9000):** Starts execution trace. LLM determines it needs to read Drive first.
-3.  **Orchestrator -> Google MCP:** Calls `search_drive_files({"query": "resume"....})`.
-4.  **Google MCP (Port 8000):** Fetches from Google API via OAuth. Returns document content.
-5.  **Orchestrator Reasoning Loop:** LLM analyzes the text. Determines if it looks "ready" based on internal reasoning.
-6.  **Orchestrator -> Google MCP:** If ready, calls `draft_and_send_email({"to": "John", "body": "Resume attached details..."})`.
-7.  **Final Wrap-up:** LLM outputs: "I reviewed your resume (it looked finished) and dispatched an email to John." Frontend visualizes the two sequential steps in the UI Execution Trace.
+**User Query**: "Review the project proposal in my Drive and email a summary to John."
 
----
-
-## ✨ ATLAS Features Checklist
-
-- **Multi-Service AI Reasoning:** Autonomous problem solving that chains multiple tools (e.g. read an email, check calendar, reply or set an event).
-- **Dynamic Execution Trace:** Real-time visibility into the LLM's thought process and operations in the UI.
-- **Microservice Architecture:** Complete separation of concerns: Frontend, Brain (Orchestrator), and Muscle (Google MCP).
-- **Independent OAuth Connectors:** Granular scopes so users only grant permissions to the services they want to use.
-- **Conflict Management (Calendar):** AI-powered conflict resolution for scheduling events.
-- **Intelligent Summarization (Gmail/Drive):** Capable of reading large amounts of text to provide brief, accurate summaries.
-- **Full Docker Support:** One command (`docker-compose up`) brings up the entire ecosystem.
-
----
-
-## 🧰 Full ATLAS Tool Registry
-
-The following tools are actively registered and available for the Orchestrator's LLM to use:
-
-### 📧 Gmail Tools
-1. **`list_unread_emails`**: List recently unread emails by ID.
-2. **`read_email`**: Read a specific email by ID and optionally summarize it.
-3. **`send_email`**: Compose and send a professional email. The LLM infers the tone and subject automatically.
-4. **`search_emails`**: Natural language search for past emails.
-5. **`get_labels`**: Fetch all Gmail folders/labels.
-6. **`get_threads`**: Retrieve recent email threads and conversations.
-7. **`get_profile`**: Get info on the authenticated user.
-
-### 📁 Google Drive Tools
-1. **`search_drive`**: Search for files or documents by name or keyword.
-2. **`read_drive_file`**: Read the textual content of a file.
-3. **`trash_drive_file`**: Move a specific file to the Drive trash bin.
-4. **`get_drive_share_link`**: Generate a shareable link and optional public access rights.
-
-### 📅 Google Calendar Tools
-1. **`list_calendar_events`**: List events for a specific date or upcoming block of days.
-2. **`add_calendar_event`**: Add an event. Checks for conflicts and suggests alternative time slots if a collision occurs.
-3. **`delete_calendar_event`**: Remove a specific calendar event.
+1.  **Ingestion**: Web Console transmits the query to the Orchestrator.
+2.  **Initial Plan**: Orchestrator determines it must first locate and read the file from Drive.
+3.  **Tool Execution (Step 1)**: Orchestrator calls `search_drive` via the Google MCP Service.
+4.  **Reasoning**: Orchestrator analyzes the retrieved document content to extract key highlights.
+5.  **Tool Execution (Step 2)**: Orchestrator calls `send_email` via the Google MCP Service with the generated summary.
+6.  **Finalization**: Orchestrator confirms both steps were successful and delivers a consolidated confirmation to the user.
+7.  **Trace Visualization**: The Web Console renders each reasoning step and tool call in the execution trace for user audit.

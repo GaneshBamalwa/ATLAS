@@ -1,96 +1,89 @@
-# 🏗️ ATLAS System Architecture: AI Orchestration Platform
+# ATLAS Architecture Overview
 
-This document outlines the architecture and implementation details of **ATLAS**, the Unified MCP & Central Orchestrator ecosystem.
+This document provides a technical deep-dive into the architecture of ATLAS, the Unified Model Context Protocol (MCP) and Central Orchestration ecosystem.
 
 ---
 
-## 🛰️ High-Level Component Overview
+## System Design Philosophy
 
-The ATLAS system is designed as a modular, distributed microservice architecture where a central "brain" (Orchestrator) manages various "specialized workers" (MCP Servers).
+ATLAS is architected as a modular, distributed microservice environment. It follows a hub-and-spoke model where a high-intelligence central orchestrator manages specialized worker services. This separation of concerns ensures that the reasoning engine remains decoupled from the specific implementation details of external integrations.
 
-### 1. 🧠 ATLAS Central Orchestrator
-**Port:** `9000`  
+---
+
+## Component Breakdown
+
+### 1. Central Orchestrator
+**Port:** 9000  
 **Location:** `services/orchestrator`  
-The core intelligence layer that manages the conversation flow and tool execution.
 
-*   **Router (`router.py`)**: Uses LLMs (Groq/OpenAI) to parse natural language and determine if a "Tool Call" is required or if a direct response is sufficient.
-*   **Executor (`executor.py`)**: The "hands" of the system. It carries out HTTP requests to the registered MCP servers, handling retries, timeouts, and user ID forwarding.
-*   **Tool Registry (`tool_registry.py`)**: The source of truth for all system capabilities. It defines every tool (Gmail, Drive, Calendar), its required arguments, and its endpoint.
-*   **Formatter (`formatter.py`)**: A post-processing layer that takes raw JSON data from tools and uses an LLM to synthesize a polished, human-friendly response.
-*   **Memory Integration**: Interacts with a standalone **Memory Service** (Port 9100) to retrieve relevant past context and store newly extracted facts using an asynchronous back-channel (`async_memory_writerTask`).
+The Orchestrator is the primary intelligence layer. It is responsible for session management, reasoning, and the execution lifecycle.
 
-### 2. 🔌 Unified Google MCP Service
-**Port:** `8000`  
+- **Routing Engine (`router.py`)**: Utilizes high-parameter LLMs to decompose natural language queries into discrete intent units. It determines if a request requires external tool intervention or can be resolved with existing context.
+- **Task Executor (`executor.py`)**: Manages the execution of tool calls. It handles HTTP communication with MCP servers, implements retry logic, and manages timeouts and state forwarding.
+- **Capability Registry (`tool_registry.py`)**: Acts as the system's source of truth for all available actions. It defines tool signatures, required parameters, and downstream endpoint mapping.
+- **Response Formatter (`formatter.py`)**: A synthesis layer that transforms raw tool outputs and JSON payloads into polished, human-centric responses using LLM-based post-processing.
+- **Memory Integration**: Synchronizes with the Memory Service via asynchronous channels to retrieve historical context and persist newly extracted facts.
+
+### 2. Google MCP Service
+**Port:** 8000  
 **Location:** `services/google-mcp`  
-A specialized server that acts as a bridge between the Orchestrator and the Google Cloud Platform.
 
-*   **Gmail Module**:
-    *   `list_unread_emails`: Fetches latest unread messages.
-    *   `read_email`: Retrieves content and can optionally auto-summarize.
-    *   `send_email`: Composes and sends professional emails.
-    *   `search_emails`: Advanced natural language search across the inbox.
-*   **Google Drive Module**:
-    *   `search_drive`: Finds files by name or content.
-    *   `read_drive_file`: Fetches content for summarization or attachment.
-    *   `get_drive_share_link`: Manages file permissions and sharing.
-*   **Google Calendar Module**:
-    *   `list_calendar_events`: Checks daily/weekly schedules.
-    *   `add_calendar_event`: Schedules new meetings with automated conflict detection.
-    *   `delete_calendar_event`: Removes scheduled items.
-*   **Authentication Hub**: Implements a robust OAuth2 flow to manage user tokens securely.
+A protocol-compliant bridge between the Orchestrator and Google Cloud Platform. It abstracts the complexity of Google Workspace APIs into a unified set of tools.
 
-### 3. 🧠 ATLAS Proactive Agent Daemon
+- **Gmail Integration**: Provides capabilities for inbox monitoring, thread analysis, and automated communication.
+- **Drive Integration**: Facilitates semantic search across file systems, document retrieval, and permission management.
+- **Calendar Integration**: Manages scheduling, conflict detection, and event lifecycle.
+- **Authentication Gateway**: Implements OAuth 2.0 flows to ensure secure, user-scoped data access.
+
+### 3. Agent Daemon
 **Location:** `services/agent-daemon`  
-A background service that enables the system to be *proactive* rather than just *reactive*. It monitors for specific triggers (e.g., upcoming meetings, unread urgent emails) and can initiate interactions via the Central Orchestrator.
 
-### 4. 🗄️ Memory Service
-**Port:** `9100`  
+The Agent Daemon provides proactive capabilities to the system. Unlike the reactive nature of the Orchestrator, the Daemon monitors background triggers and initiates interactions based on predefined conditions or identified user needs.
+
+### 4. Memory Service
+**Port:** 9100  
 **Location:** `services/memory`  
-A high-performance storage layer for user preferences, facts, and interaction history. It uses vector embeddings (likely) for semantic retrieval.
 
-### 5. 🖥️ ATLAS Web Console (Frontend)
+A high-performance storage layer for persistent context. It utilizes both relational and vector storage to manage user preferences, factual history, and semantic embeddings for context-aware retrieval.
+
+### 5. Web Console
 **Location:** `apps/web-console`  
-A premium, dark-themed React dashboard where users interact with the assistant. It features:
-*   Real-time chat interface.
-*   **Execution Trace Visualizer**: Shows the "thinking process" of the orchestrator (which tools were called and why).
-*   Account management for connecting Google services.
+
+A premium React-based interface for interaction and observability. It features a real-time chat environment and an execution trace visualizer for auditing the AI's internal reasoning paths.
 
 ---
 
-## 🔄 Interaction Workflow (Sequence)
+## Interaction Lifecycle
 
-1.  **Ingestion**: User asks: *"Find the project proposal on my Drive and email it to John with a summary."*
-2.  **Context Enrichment**: The **Orchestrator** queries the **Memory Service** for any known context about "John" or "project proposal".
-3.  **Reasoning**: The **Orchestrator** identifies two steps:
-    *   Step A: Use `search_drive` to find the file.
-    *   Step B: Use `send_email` with the retrieved content.
-4.  **Execution Loop**:
-    *   Orchestrator calls **Google MCP** (`GET /api/drive/search`).
-    *   MCP returns file ID and content.
-    *   Orchestrator calls **Google MCP** (`POST /api/emails/send`).
-5.  **Learning**: After the interaction, the **Orchestrator** asynchronously sends extracted facts (e.g., "John is a project stakeholder") to the **Memory Service**.
-6.  **Formatting**: The raw success/failure data is sent to the **Formatter LLM**.
-7.  **Delivery**: The user receives: *"I've found your 'Project_Alpha_Proposal.pdf' on Drive and sent a summarized version to John as requested. ✅"*
+1.  **Ingestion**: The user submits a natural language request through the Web Console.
+2.  **Contextual Enrichment**: The Orchestrator queries the Memory Service for relevant historical data and user preferences.
+3.  **Strategic Planning**: The reasoning engine decomposes the request into an execution plan (e.g., "Search Drive for X" then "Email Y").
+4.  **Distributed Execution**:
+    - The Orchestrator invokes the Google MCP Service.
+    - The MCP Service executes the requested operation via Google APIs.
+    - Results are returned to the Orchestrator.
+5.  **Fact Extraction**: The Orchestrator identifies new information from the interaction and asynchronously updates the Memory Service.
+6.  **Synthesis**: The Formatter combines execution results into a final response.
+7.  **Delivery**: The response is rendered to the user via the Web Console.
 
 ---
 
-## 🛠️ Tech Stack
+## Implementation Specifications
 
-| Layer | Technology |
+| Layer | Standard / Technology |
 | :--- | :--- |
-| **Backend Framework** | FastAPI (Python 3.10+) |
-| **Orchestration Logic** | ReAct / Tool-use Prompting |
-| **LLM Providers** | Groq (Llama 3), OpenAI (GPT-4o) |
-| **Communication** | RESTful HTTP / JSON |
-| **Authentication** | Google OAuth 2.0 |
-| **Caching** | In-memory with TTL for tool results |
-| **Logging** | Structured JSON logging for trace analysis |
+| **Communication Protocol** | RESTful HTTP / JSON |
+| **Authentication** | OAuth 2.0 / Bearer Tokens |
+| **Persistence** | Redis / ChromaDB / SQLite |
+| **Inference Engines** | Groq, OpenAI, Anthropic |
+| **Frontend Framework** | React / TypeScript / Vite |
 
 ---
 
-## 📂 Directory Map
+## Directory Mapping
 
-*   `services/orchestrator/app/`: Core logic for routing and execution.
-*   `services/google-mcp/backend/`: Tool implementations and Google API integration.
-*   `services/google-mcp/frontend/`: (Optional) Specialized auth or management UI for the MCP server.
-*   `apps/web-console/`: The main user-facing application.
+- `services/orchestrator/app/`: Core orchestration and routing logic.
+- `services/google-mcp/backend/`: MCP tool implementations and Google API bindings.
+- `services/agent-daemon/app/`: Proactive monitoring and notification logic.
+- `services/memory/app/`: Semantic storage and fact extraction modules.
+- `apps/web-console/`: User interface and observability dashboard.
