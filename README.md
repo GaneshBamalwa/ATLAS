@@ -1,4 +1,13 @@
-# ATLAS: Enterprise AI Orchestration Platform
+<br/>
+
+<p align="center">
+  <img src="./assests/atlas1.png" alt="ATLAS Logo" width="120" />
+</p>
+<p align="center">
+  Enterprise AI Orchestration Platform
+</p>
+
+<br/>
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Architecture](https://img.shields.io/badge/architecture-microservices-0f766e.svg)](architecture.md)
