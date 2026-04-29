@@ -1,199 +1,213 @@
-# ATLAS: Unified AI Orchestration Platform
+# ATLAS: Enterprise AI Orchestration Platform
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/GaneshBamalwa/ATLAS)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-supported-blue.svg)](docker-compose.yml)
-[![FastAPI](https://img.shields.io/badge/framework-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/frontend-React-61DAFB.svg)](https://reactjs.org/)
+[![Architecture](https://img.shields.io/badge/architecture-microservices-0f766e.svg)](architecture.md)
+[![Backend](https://img.shields.io/badge/backend-FastAPI-009688.svg)](services/orchestrator)
+[![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-61DAFB.svg)](apps/web-console)
+[![Language](https://img.shields.io/badge/language-TypeScript%20%7C%20Python-4b5563.svg)](apps/web-console)
+[![Runtime](https://img.shields.io/badge/runtime-Docker%20%7C%20pnpm-1f2937.svg)](docker-compose.yml)
+[![Integrations](https://img.shields.io/badge/integrations-Google%20Workspace%20MCP-4285F4.svg)](services/google-mcp)
 
-ATLAS is a high-performance AI orchestration ecosystem engineered to bridge natural language reasoning with deterministic tool execution. It enables organizations to operationalize large language models through a structured, observable, and extensible microservice architecture.
+ATLAS is a distributed AI orchestration platform for teams that need deterministic tool execution, observable reasoning, and enterprise-grade Google Workspace automation. It turns natural language requests into structured workflows, executes them across specialized services, and returns polished responses with full trace visibility.
 
-Designed for enterprise-grade deployments, ATLAS combines advanced reasoning frameworks, secure integrations, and real-time execution visibility into a single cohesive platform.
+The platform is organized around a central orchestrator, a unified Google MCP service, persistent memory, a proactive agent daemon, and a React-based web console. The result is a system that behaves more like an operational control plane than a chat app.
 
----
+## At A Glance
 
-## Table of Contents
+| Capability | What It Delivers |
+| :-- | :-- |
+| Orchestration | Intent routing, multi-step planning, tool selection, and response synthesis. |
+| Google automation | Gmail, Drive, and Calendar actions through a unified MCP layer. |
+| Memory | Persistent semantic context for personalization and continuity. |
+| Proactive behavior | Background monitoring and event-driven suggestions. |
+| Observability | Traceable execution paths and inspectable request/response payloads. |
 
-- [Overview](#overview)
-- [Core Capabilities](#core-capabilities)
-- [System Architecture](#system-architecture)
-- [Execution Workflow](#execution-workflow)
-- [Technology Stack](#technology-stack)
-- [Getting Started](#getting-started)
-    - [Prerequisites](#prerequisites)
-    - [Quick Start](#quick-start-recommended)
-    - [Local Development](#local-development-mode)
-- [Design Principles](#design-principles)
-- [Documentation](#documentation)
-
----
-
-## Overview
-
-ATLAS functions as an intelligent coordination layer between users, AI models, and external systems. It translates natural language into multi-step execution plans, invokes the appropriate services, and synthesizes results into structured, human-readable responses.
-
-The platform is built on a distributed architecture where a central orchestrator governs specialized services, enabling scalability, modularity, and resilience. Unlike traditional chatbots, ATLAS is an operational layer designed for multi-system automation.
-
----
-
-## Core Capabilities
-
-### Central Orchestration Engine
-The orchestrator serves as the system’s cognitive core. It interprets intent, plans execution strategies, and coordinates tool interactions through a structured reasoning loop. It supports multi-step workflows, dynamic tool selection, and context-aware decision-making.
-
-### Unified Google MCP Integration
-ATLAS provides a standardized Model Context Protocol layer for seamless interaction with Google Workspace services. This includes Gmail, Drive, and Calendar, all secured through OAuth2 and exposed via a unified interface.
-
-### Autonomous Agent Daemon
-A proactive intelligence layer continuously monitors user context and external signals. It identifies opportunities for intervention and generates actionable suggestions without requiring explicit user prompts.
-
-### Persistent Memory Layer
-ATLAS incorporates a semantic memory system that captures user preferences, contextual facts, and historical interactions. This enables continuity, personalization, and improved reasoning over time.
-
-### Execution Trace Observability
-A real-time visualization system exposes the internal reasoning and execution flow of the orchestrator. This includes tool selection, payload inspection, and step-by-step traceability for debugging and auditing.
-
----
-
-## System Architecture
-
-ATLAS follows a distributed microservice design, separating responsibilities across independent yet coordinated services.
+## Platform Map
 
 ```mermaid
 graph TD
-    User([User]) <--> WebConsole[Web Console]
-    WebConsole <--> Orchestrator[Central Orchestrator]
-    Orchestrator <--> Memory[Memory Service]
-    Orchestrator <--> MCP[Google MCP Service]
-    Daemon[Agent Daemon] -- Proactive Triggers --> Orchestrator
-    MCP <--> Google[Google Workspace APIs]
-    Orchestrator <--> LLM[AI Inference Providers]
+    User[User] --> WebConsole[Web Console\nReact + Vite]
+    WebConsole --> Orchestrator[Central Orchestrator\nFastAPI on 9000]
+    Orchestrator <--> Memory[Memory Service\nFastAPI on 8002]
+    Orchestrator <--> GoogleMCP[Google MCP Service\nFastAPI on 8000]
+    Agent[Agent Daemon\nProactive Monitor] --> Orchestrator
+    Memory <--> Redis[(Redis)]
+    GoogleMCP <--> GoogleAPIs[(Google Workspace APIs)]
+    Orchestrator <--> LLM[LLM Provider\nGroq / OpenRouter / OpenAI]
 ```
 
-### Core Components
-
-| Component | Port | Description |
-| :--- | :--- | :--- |
-| **Orchestrator** | 9000 | The reasoning engine responsible for routing, planning, execution, and response synthesis. |
-| **Google MCP Service** | 8000 | A protocol-compliant bridge that translates orchestrator actions into Google API operations. |
-| **Memory Service** | 9100 | A semantic storage layer for contextual retrieval and long-term learning. |
-| **Agent Daemon** | 9001 | A background service that enables proactive intelligence and event-driven behavior. |
-| **Web Console** | 5173 | A React-based frontend providing interaction, observability, and system control. |
-
----
-
-## Execution Workflow
-
-The orchestration lifecycle follows a rigorous path from ingestion to persistence:
+## Request Lifecycle
 
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant C as Web Console
+    participant W as Web Console
     participant O as Orchestrator
     participant M as Memory
-    participant T as Google MCP
-    U->>C: Submit natural language request
-    C->>O: Transmit API request
-    O->>M: Enrich context from semantic store
-    M-->>O: Historical facts and preferences
-    O->>O: Decomposition and planning (LLM)
-    O->>T: Invoke specialized MCP endpoints
-    T-->>O: Return structured JSON results
-    O->>O: Synthesis and formatting
-    O->>M: Persist extracted insights
-    O-->>C: Deliver human-readable response
-    C-->>U: Render final delivery
+    participant G as Google MCP
+
+    U->>W: Submit request
+    W->>O: POST /chat
+    O->>M: Retrieve contextual memory
+    M-->>O: Preferences and prior facts
+    O->>O: Route, plan, and reason
+    O->>G: Invoke required tools
+    G-->>O: Structured results
+    O->>O: Synthesize final response
+    O-->>W: ChatResponse + execution trace
+    W-->>U: Render output
 ```
 
----
+## Core Services
+
+| Service | Port | Responsibility |
+| :-- | :-- | :-- |
+| Web Console | 5173 in dev, 3000 in Docker | Chat UI, markdown rendering, and trace inspection. |
+| Orchestrator | 9000 | Core reasoning, routing, tool execution, and response formatting. |
+| Google MCP | 8000 | Google Workspace bridge for Gmail, Drive, and Calendar. |
+| Memory | 8002 | Semantic persistence and contextual retrieval. |
+| Agent Daemon | 9001 | Background monitoring and proactive triggers. |
+| Redis | 6379 | Queueing and shared state support. |
+
+## Feature Set
+
+| Area | Highlights |
+| :-- | :-- |
+| Reasoning | ReAct-style orchestration, multi-step planning, and tool chaining. |
+| Integrations | Gmail intelligence, Drive search, Calendar scheduling, and OAuth-backed access. |
+| UX | Real-time chat, execution traces, and persistent session state. |
+| Reliability | Structured responses, service separation, and explicit timeouts/retries. |
+| Memory | Long-term context storage and preference-aware behavior. |
 
 ## Technology Stack
 
-| Layer | Technologies |
-| :--- | :--- |
-| **Frontend** | React, Vite, Tailwind CSS, ShadCN UI |
-| **Backend** | FastAPI, LangChain / LangGraph |
-| **AI Providers** | Groq (LLaMA 3), OpenAI (GPT-4o), Claude Sonnet |
-| **Infrastructure** | Docker, Redis, ChromaDB |
-| **Authentication** | Google OAuth 2.0 |
+| Layer | Stack |
+| :-- | :-- |
+| Frontend | React, TypeScript, Vite, Tailwind CSS, React Markdown |
+| Backend | FastAPI, Python, async HTTP clients |
+| Orchestration | LangGraph-style runtime and internal routing pipelines |
+| Infrastructure | Docker, Redis, ChromaDB |
+| Integrations | Google OAuth 2.0, Google Workspace APIs |
 
----
+## Repository Layout
 
-## Getting Started
+```text
+ATLAS/
+├── apps/
+│   └── web-console/        # React frontend and chat UI
+├── services/
+│   ├── orchestrator/       # Core reasoning and response synthesis
+│   ├── google-mcp/         # Google Workspace MCP bridge
+│   ├── memory/             # Semantic memory service
+│   └── agent-daemon/       # Proactive background intelligence
+├── architecture.md         # System design overview
+├── details.md              # Technical specifications
+├── features.md             # Feature registry
+├── startup.md              # Deployment and startup guide
+└── docker-compose.yml      # Full-stack local deployment
+```
+
+## Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose
-- Python 3.10+
-- Node.js with pnpm
-- Google Cloud credentials (`credentials.json`)
 
-### Quick Start (Recommended)
-The most efficient way to deploy the full ATLAS stack is via Docker Compose:
+| Requirement | Notes |
+| :-- | :-- |
+| Docker and Docker Compose | Recommended for full-stack local runs. |
+| Python 3.10+ | Required for the backend services. |
+| Node.js 18+ and pnpm | Required for the web console. |
+| Google Cloud credentials | Place `credentials.json` in the Google MCP service. |
+
+### 1. Configure Environment
+
+Start from `example.env` and create your local `.env` file in the project root.
+
+Key variables:
+
+| Variable | Purpose |
+| :-- | :-- |
+| `GROQ_API_KEY` | Backup LLM provider key. |
+| `OPENROUTER_API_KEY` | Primary LLM provider key in the example config. |
+| `LLM_MODEL` | Model identifier used by the orchestrator. |
+| `LLM_BASE_URL` | Provider API base URL. |
+| `ORCHESTRATOR_PORT` | Orchestrator runtime port. |
+| `ALLOWED_ORIGINS` | Permitted browser origins for local development. |
+| `GOOGLE_CLIENT_SECRETS_JSON` | Google OAuth client secrets file. |
+
+### 2. Run With Docker
 
 ```bash
 docker-compose up --build
 ```
-Once initialized, access the web console at: `http://localhost:5173`
 
-### Local Development Mode
-For granular control, services can be executed independently. Ensure dependencies are installed for each service.
+Open the web console at `http://localhost:3000`.
 
-#### 1. Orchestrator
+### 3. Run Services Locally
+
+Orchestrator:
+
 ```bash
 cd services/orchestrator
 uvicorn app.main:app --reload --port 9000
 ```
 
-#### 2. Google MCP
+Google MCP:
+
 ```bash
 cd services/google-mcp
 uvicorn backend.main:app --reload --port 8000
 ```
 
-#### 3. Memory Service
+Memory:
+
 ```bash
 cd services/memory
 uvicorn app.main:app --reload --port 8002
 ```
 
-#### 4. Agent Daemon
+Agent Daemon:
+
 ```bash
 cd services/agent-daemon
 uvicorn app.main:app --reload --port 9001
 ```
 
-#### 5. Web Console
+Web Console:
+
 ```bash
 cd apps/web-console
 pnpm install
 pnpm run dev
 ```
 
----
+## Operational Notes
 
-## Design Principles
-
-ATLAS is built around a set of foundational principles to ensure industrial-grade reliability:
-
-- **Deterministic Execution**: Prioritizing structured tool outputs over probabilistic model responses.
-- **Transparent Reasoning**: Complete traceability of all internal decisions and tool payloads.
-- **Service-Oriented Architecture**: Modular components that can be scaled or replaced independently.
-- **Secure Integration**: User-scoped authorization with strict OAuth2 boundaries.
-- **Continuous Learning**: Augmenting static model weights with dynamic semantic memory.
-
----
+| Topic | Detail |
+| :-- | :-- |
+| Markdown rendering | Responses are rendered directly in the web console with React Markdown and GFM support. |
+| Session persistence | Chat state is stored locally so navigation does not clear the conversation. |
+| Execution traces | The UI exposes orchestration steps for debugging and auditability. |
+| Integrations | Google Workspace actions are routed through the MCP service rather than being called directly from the browser. |
 
 ## Documentation
 
-For detailed technical specifications and deployment guides, refer to the following resources:
+| File | Use |
+| :-- | :-- |
+| [architecture.md](architecture.md) | System topology and service boundaries. |
+| [features.md](features.md) | Capability inventory and platform features. |
+| [startup.md](startup.md) | Deployment paths and service startup instructions. |
+| [details.md](details.md) | Technical specifications, ports, and security model. |
 
-- [Architecture Overview](./architecture.md)
-- [Feature Registry](./features.md)
-- [Startup Guide](./startup.md)
-- [Technical Specifications](./details.md)
+## Design Principles
 
----
+ATLAS is built around a few non-negotiable principles:
 
-> [!IMPORTANT]
-> ATLAS is not a chatbot. It is an orchestration layer for operational AI, enabling seamless, multi-system automation with total visibility and control.
+- Deterministic execution over opaque behavior.
+- Clear service boundaries and explicit data flow.
+- Human-readable output with traceable provenance.
+- Secure, user-scoped Google Workspace integration.
+- Persistent memory for continuity and personalization.
+
+## Positioning
+
+ATLAS is an orchestration layer for operational AI, not a generic chatbot. It is designed to coordinate systems, preserve context, and surface execution detail with enough structure for enterprise use.
