@@ -1,115 +1,279 @@
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Globe, MessageSquare, Database, Shield, Cpu } from 'lucide-react';
-import GlassCard from '@/components/GlassCard';
+import { Calendar, HardDrive, Mail, RefreshCcw } from 'lucide-react';
+import { getActiveUserId, setActiveUserId } from '@/lib/authUser';
+
+type ServiceKey = 'gmail' | 'drive' | 'calendar';
+
+type ServiceState = {
+  authenticated: boolean;
+  loading: boolean;
+  error?: string;
+};
+
+const MCP_BASE_URL = import.meta.env.VITE_GOOGLE_MCP_BASE_URL || 'http://localhost:8000';
+
+const SERVICES: Array<{ key: ServiceKey; label: string; description: string; icon: ReactNode }> = [
+  {
+    key: 'gmail',
+    label: 'Gmail',
+    description: 'Read, draft, and send email through ATLAS workflows.',
+    icon: <Mail size={16} />,
+  },
+  {
+    key: 'drive',
+    label: 'Google Drive',
+    description: 'Search, read, and share files from connected Drive.',
+    icon: <HardDrive size={16} />,
+  },
+  {
+    key: 'calendar',
+    label: 'Google Calendar',
+    description: 'Read events and create or update meetings.',
+    icon: <Calendar size={16} />,
+  },
+];
+
+const getUrlParams = () => {
+  if (typeof window === 'undefined') {
+    return { userId: '', service: '' };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return {
+    userId: params.get('user_id') || '',
+    service: params.get('service') || '',
+  };
+};
 
 export default function IntegrationsPage() {
-  const integrations = [
-    {
-      name: 'Google Workspace',
-      description: 'Gmail, Calendar, Drive integration for automated workflows',
-      icon: <Globe size={24} />,
-      status: 'active',
-      color: 'from-blue-500 to-cyan-500',
-    },
-    {
-      name: 'Slack',
-      description: 'Real-time notifications and interactive commands',
-      icon: <MessageSquare size={24} />,
-      status: 'pending',
-      color: 'from-purple-500 to-pink-500',
-    },
-    {
-      name: 'Elasticsearch',
-      description: 'High-performance semantic search and indexing',
-      icon: <Database size={24} />,
-      status: 'active',
-      color: 'from-orange-500 to-yellow-500',
-    },
-    {
-      name: 'OAuth 2.0',
-      description: 'Secure enterprise-grade authentication and authorization',
-      icon: <Shield size={24} />,
-      status: 'active',
-      color: 'from-green-500 to-emerald-500',
-    },
-    {
-      name: 'Nvidia CUDA',
-      description: 'GPU-accelerated inference for complex orchestrations',
-      icon: <Cpu size={24} />,
-      status: 'inactive',
-      color: 'from-emerald-500 to-teal-500',
-    },
-    {
-      name: 'Custom Webhooks',
-      description: 'Trigger external systems with execution lifecycle events',
-      icon: <Zap size={24} />,
-      status: 'active',
-      color: 'from-blue-500 to-indigo-500',
-    },
-  ];
+  const initialUserId = getUrlParams().userId || getActiveUserId();
+  const [userIdInput, setUserIdInput] = useState(initialUserId);
+  const [activeUserId, setActiveUser] = useState(initialUserId);
+  const [serviceState, setServiceState] = useState<Record<ServiceKey, ServiceState>>({
+    gmail: { authenticated: false, loading: true },
+    drive: { authenticated: false, loading: true },
+    calendar: { authenticated: false, loading: true },
+  });
+  const [pendingService, setPendingService] = useState<ServiceKey | null>(() => {
+    const { service } = getUrlParams();
+    return service === 'gmail' || service === 'drive' || service === 'calendar' ? service : null;
+  });
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
+  const connectedCount = useMemo(
+    () => Object.values(serviceState).filter((service) => service.authenticated).length,
+    [serviceState],
+  );
+
+  const updateServiceState = (service: ServiceKey, patch: Partial<ServiceState>) => {
+    setServiceState((previous) => ({
+      ...previous,
+      [service]: {
+        ...previous[service],
+        ...patch,
       },
-    },
+    }));
   };
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 },
+  const fetchServiceStatus = async (service: ServiceKey, userId: string) => {
+    updateServiceState(service, { loading: true, error: undefined });
+    try {
+      const response = await fetch(`${MCP_BASE_URL}/auth/status/${service}/${encodeURIComponent(userId)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Failed to fetch status.');
+      }
+
+      updateServiceState(service, {
+        loading: false,
+        authenticated: Boolean(data?.authenticated),
+        error: undefined,
+      });
+    } catch (error) {
+      updateServiceState(service, {
+        loading: false,
+        authenticated: false,
+        error: error instanceof Error ? error.message : 'Unknown status error.',
+      });
+    }
+  };
+
+  const refreshAllStatuses = async (userId: string) => {
+    await Promise.all(SERVICES.map((service) => fetchServiceStatus(service.key, userId)));
+  };
+
+  useEffect(() => {
+    const { userId, service } = getUrlParams();
+    if (userId && userId !== activeUserId) {
+      setUserIdInput(userId);
+      setActiveUser(userId);
+      setActiveUserId(userId);
+    }
+    if (service === 'gmail' || service === 'drive' || service === 'calendar') {
+      setPendingService(service);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshAllStatuses(activeUserId);
+  }, [activeUserId]);
+
+  useEffect(() => {
+    if (!pendingService) return;
+    void fetchServiceStatus(pendingService, activeUserId);
+    setPendingService(null);
+  }, [pendingService, activeUserId]);
+
+  const isPlaceholderUser = (id: string) => {
+    if (!id) return true;
+    const lower = id.toLowerCase();
+    return (
+      lower === 'default_user' ||
+      lower === 'admin@example.com' ||
+      lower.startsWith('unknown_user_')
+    );
+  };
+
+  const handleConnect = (service: ServiceKey) => {
+    window.location.href = `${MCP_BASE_URL}/auth/login/${service}`;
+  };
+
+  const handleDisconnect = async (service: ServiceKey) => {
+    updateServiceState(service, { loading: true, error: undefined });
+    try {
+      const response = await fetch(`${MCP_BASE_URL}/auth/logout/${service}/${encodeURIComponent(activeUserId)}`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Disconnect failed.');
+      }
+
+      updateServiceState(service, { authenticated: false, loading: false, error: undefined });
+    } catch (error) {
+      updateServiceState(service, {
+        loading: false,
+        error: error instanceof Error ? error.message : 'Disconnect failed.',
+      });
+    }
+  };
+
+  const handleUserIdSave = () => {
+    const trimmed = userIdInput.trim();
+    if (!trimmed) return;
+    setActiveUserId(trimmed);
+    setActiveUser(trimmed);
   };
 
   return (
     <div className="h-full overflow-y-auto p-8 custom-scrollbar">
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="mb-12"
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+        className="mb-8"
       >
         <h1 className="font-display text-3xl text-foreground mb-2">Integrations</h1>
-        <p className="text-muted-foreground">Connect ATLAS to your favorite tools and platforms</p>
+        <p className="text-muted-foreground">Connect or disconnect your Google tools.</p>
       </motion.div>
 
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"
-      >
-        {integrations.map((integration) => (
-          <motion.div key={integration.name} variants={itemVariants}>
-            <GlassCard variant="elevated" className="h-full flex flex-col">
-              <div className={`inline-flex p-3 rounded-xl bg-gradient-to-r ${integration.color} mb-6 shadow-lg shadow-black/20`}>
-                <div className="text-white">{integration.icon}</div>
-              </div>
-              <h3 className="font-heading text-lg text-foreground mb-2">{integration.name}</h3>
-              <p className="text-sm text-muted-foreground mb-6 flex-1">
-                {integration.description}
-              </p>
-              <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
+      <div className="mb-6 rounded-2xl border border-white/8 bg-white/[0.02] p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex-1">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-2">Active User</p>
+            <div className="flex items-center gap-2">
+              <input
+                value={userIdInput}
+                onChange={(event) => setUserIdInput(event.target.value)}
+                className="h-10 w-full rounded-xl border border-white/8 bg-white/[0.02] px-3 text-sm text-foreground outline-none focus:border-primary/60"
+                placeholder="Enter account email"
+              />
+              <button
+                onClick={handleUserIdSave}
+                className="h-10 rounded-xl border border-white/8 px-4 text-xs uppercase tracking-[0.24em] text-foreground transition-colors duration-150 hover:bg-white/[0.05]"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground">{connectedCount}/3 connected</p>
+            <button
+              onClick={() => void refreshAllStatuses(activeUserId)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 text-muted-foreground transition-colors duration-150 hover:bg-white/[0.05] hover:text-foreground"
+              aria-label="Refresh integration status"
+            >
+              <RefreshCcw size={16} />
+            </button>
+          </div>
+        </div>
+
+        {isPlaceholderUser(activeUserId) && (
+          <div className="mb-4 rounded-lg border border-yellow-400/20 bg-yellow-100/5 p-3 text-sm text-yellow-300">
+            No valid Google account detected. Please connect your Google account via the "Connect" button or enter your email above and click "Save".
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {SERVICES.map((service) => {
+          const state = serviceState[service.key];
+          const isConnected = state.authenticated;
+
+          return (
+            <motion.div
+              key={service.key}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="rounded-2xl border border-white/8 bg-white/[0.02] p-5"
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-foreground">
+                  {service.icon}
+                </div>
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    integration.status === 'active' ? 'bg-accent-green glow-success' : 
-                    integration.status === 'pending' ? 'bg-accent-purple animate-pulse' : 
-                    'bg-white/10'
-                  }`} />
-                  <span className="text-[10px] uppercase tracking-widest font-bold text-foreground-tertiary">
-                    {integration.status}
+                  <span className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-foreground' : 'bg-white/20'}`} />
+                  <span className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                    {state.loading ? 'Checking' : isConnected ? 'Connected' : 'Disconnected'}
                   </span>
                 </div>
-                <button className="text-xs font-bold text-accent-blue hover:text-accent-blue/80 transition-colors uppercase tracking-widest">
-                  Manage
-                </button>
               </div>
-            </GlassCard>
-          </motion.div>
-        ))}
-      </motion.div>
+
+              <h2 className="text-base font-medium text-foreground tracking-tight mb-2">{service.label}</h2>
+              <p className="text-sm text-muted-foreground leading-6 min-h-[72px]">{service.description}</p>
+
+              {state.error && (
+                <p className="mt-2 text-xs text-destructive">{state.error}</p>
+              )}
+
+              <div className="mt-5 flex items-center gap-2">
+                {!isConnected && (
+                  <button
+                    onClick={() => handleConnect(service.key)}
+                    disabled={state.loading}
+                    className="h-9 rounded-lg border border-white/8 px-4 text-xs uppercase tracking-[0.22em] text-foreground transition-colors duration-150 hover:bg-white/[0.05] disabled:opacity-50"
+                  >
+                    Connect
+                  </button>
+                )}
+                {isConnected && (
+                  <button
+                    onClick={() => void handleDisconnect(service.key)}
+                    disabled={state.loading}
+                    className="h-9 rounded-lg border border-white/8 px-4 text-xs uppercase tracking-[0.22em] text-muted-foreground transition-colors duration-150 hover:bg-white/[0.05] hover:text-foreground disabled:opacity-40"
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }

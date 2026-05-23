@@ -11,7 +11,7 @@ from app.middleware.instrumentation import instrument_node
 @instrument_node(node_type="mcp_tool", node_name="Tool Execution")
 async def execute_tool_node(state: GraphState) -> Dict[str, Any]:
     tool_call = state["current_tool_call"]
-    mutative_tools = {"send_email", "add_calendar_event", "delete_calendar_event", "trash_drive_file"}
+    mutative_tools = {"send_email", "add_calendar_event", "delete_calendar_event", "trash_drive_file", "clear_calendar_schedule"}
     
     # ── Universal Skip & Replay Logic ─────────────────────────────────────────
     # If this tool was already successful in this session, REPLAY the result 
@@ -82,20 +82,38 @@ async def execute_tool_node(state: GraphState) -> Dict[str, Any]:
         if isinstance(essential_data, dict) and "content" in essential_data:
             essential_data = {k: v for k, v in essential_data.items() if k != "content"}
             essential_data["_info"] = "Content truncated."
-            
+
         current_history = state.get("current_history", []) + [
             {"role": "user", "content": f"Output from {tool_call.tool}: {essential_data}"}
         ]
-        
+
         original_request = state.get("user_message", "Satisfy user intent")
-        next_message = f"CONTEXT: I just executed '{tool_call.tool}' successfully. " \
-                       f"THE GOAL IS: '{original_request}'. " \
-                       f"BASED ON THE TOOL OUTPUT IN HISTORY, WHAT IS THE NEXT STEP? " \
-                       f"DO NOT RE-EXECUTE '{tool_call.tool}' UNLESS ABSOLUTELY NECESSARY WITH DIFFERENT ARGS."
-        
+
+        if not response.success:
+            failure_note = response.error or "Tool execution failed."
+            failure_message = (
+                f"TOOL FAILURE: '{tool_call.tool}' failed with error: {failure_note}. "
+                f"THE GOAL IS: '{original_request}'. "
+                f"DO NOT CLAIM SUCCESS. If this is an authentication issue, tell the user to connect the required service first. "
+                f"Do not repeat the same failed call with identical arguments."
+            )
+            return {
+                "executed_actions": executed_actions + [action_log],
+                "orchestrator_errors": state.get("orchestrator_errors", []) + [failure_note],
+                "current_history": current_history,
+                "current_message": failure_message,
+            }
+
+        next_message = (
+            f"CONTEXT: I just executed '{tool_call.tool}' successfully. "
+            f"THE GOAL IS: '{original_request}'. "
+            f"BASED ON THE TOOL OUTPUT IN HISTORY, WHAT IS THE NEXT STEP? "
+            f"DO NOT RE-EXECUTE '{tool_call.tool}' UNLESS ABSOLUTELY NECESSARY WITH DIFFERENT ARGS."
+        )
+
         return {
             "executed_actions": executed_actions + [action_log],
-            "orchestrator_errors": state.get("orchestrator_errors", []) + ([response.error] if not response.success else []),
+            "orchestrator_errors": state.get("orchestrator_errors", []),
             "current_history": current_history,
             "current_message": next_message,
         }

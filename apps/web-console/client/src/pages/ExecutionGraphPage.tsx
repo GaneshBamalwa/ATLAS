@@ -173,8 +173,8 @@ export default function ExecutionGraphPage() {
                     <Workflow size={20} />
                   </div>
                   <div>
-                      <h1 className="text-sm font-display text-white">Topological Observer</h1>
-                      <p className="text-[9px] uppercase tracking-[0.3em] text-white/30 font-black mt-0.5">Execution Reference: {executionId || 'IDLE'}</p>
+                      <h1 className="text-sm font-display text-white">Pipeline Monitor</h1>
+                      <p className="text-[9px] uppercase tracking-[0.3em] text-white/30 font-black mt-0.5">Session: {executionId || 'IDLE'}</p>
                   </div>
                 </div>
 
@@ -222,8 +222,8 @@ export default function ExecutionGraphPage() {
                       <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0, 0.2, 0] }} transition={{ duration: 4, repeat: Infinity }} className="absolute inset-0 rounded-full bg-accent-blue" />
                   </div>
                   <div className="text-center space-y-2">
-                      <h2 className="text-2xl font-display text-white">Inert Observability</h2>
-                      <p className="text-[11px] text-white/30 uppercase tracking-[0.4em] font-black">Select an active lattice from the history</p>
+                      <h2 className="text-2xl font-display text-white">No Session Selected</h2>
+                      <p className="text-[11px] text-white/30 uppercase tracking-[0.4em] font-black">Select a session from the history panel</p>
                   </div>
                 </div>
             ) : (

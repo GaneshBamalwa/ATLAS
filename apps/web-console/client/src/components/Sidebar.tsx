@@ -1,17 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ChevronDown,
-  Code2,
-  GitBranch,
-  Layers,
-  LogOut,
-  MessageSquare,
-  Settings,
-  Zap,
-} from 'lucide-react';
+import { ChevronDown, Code2, GitBranch, Layers, LogOut, MessageSquare, Settings, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { GlassPanel } from '@/ui/primitives/GlassPanel';
 
 interface SidebarProps {
   onToggle: () => void;
@@ -36,64 +26,56 @@ export default function Sidebar({ onToggle }: SidebarProps) {
   ];
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Branding Section */}
-      <div className="p-8 pb-4">
-        <motion.div 
-          className="flex items-center gap-4 group cursor-pointer"
-          whileHover={{ x: 4 }}
+    <div className="flex h-full flex-col px-5 py-6">
+      <div className="pb-8">
+        <motion.button
+          className="flex items-center gap-3 text-left"
+          whileHover={{ opacity: 0.85 }}
           onClick={() => setLocation('/')}
         >
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent-blue to-accent-purple flex items-center justify-center shadow-xl shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow duration-500">
-            <Zap size={24} className="text-white fill-white/20" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-foreground">
+            <Zap size={18} />
           </div>
           <div>
-            <h2 className="text-lg font-display tracking-tight text-foreground-primary">ATLAS</h2>
-            <p className="text-[10px] uppercase tracking-[0.2em] font-black text-accent-blue/60 mt-0.5">Control v1.0</p>
+            <h2 className="text-sm font-medium tracking-[0.24em] text-foreground">ATLAS</h2>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Orchestrator</p>
           </div>
-        </motion.div>
+        </motion.button>
       </div>
 
-      {/* Main Navigation */}
-      <div className="flex-1 px-4 py-6 space-y-2 overflow-y-auto scrollbar-hide">
+      <div className="flex-1 overflow-y-auto pr-1">
         {menuItems.map((item) => {
           const isSelected = item.href === '/' 
             ? location === '/' 
             : item.href && location.startsWith(item.href);
           
           return (
-            <div key={item.id}>
+            <div key={item.id} className="mb-2">
               <motion.button
                 onClick={() => {
                   if (item.href) setLocation(item.href);
                   if (item.submenu) setExpandedMenu(expandedMenu === item.id ? null : item.id);
                 }}
-                whileHover={{ x: 4 }}
-                whileTap={{ scale: 0.98 }}
-                className={`w-full group flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 relative ${
-                  isSelected 
-                    ? 'bg-white/[0.08] shadow-inner border border-white/5' 
-                    : 'hover:bg-white/[0.03]'
+                whileHover={{ opacity: 0.85 }}
+                whileTap={{ scale: 0.99 }}
+                className={`relative flex w-full items-center justify-between rounded-lg px-3 py-3 transition-colors duration-150 ${
+                  isSelected ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {isSelected && (
-                  <motion.div 
+                  <motion.div
                     layoutId="active-indicator"
-                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                    className="absolute left-0 w-1 h-6 bg-accent-blue rounded-full shadow-[0_0_8px_#007AFF]"
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className="absolute left-0 top-2.5 h-6 w-px bg-primary"
                   />
                 )}
                 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <item.icon 
                     size={18} 
-                    className={`transition-colors duration-300 ${
-                      isSelected ? 'text-accent-blue' : 'text-foreground-tertiary group-hover:text-foreground-primary'
-                    }`} 
+                    className={isSelected ? 'text-foreground' : 'text-muted-foreground'}
                   />
-                  <span className={`text-sm font-medium transition-colors duration-300 ${
-                    isSelected ? 'text-foreground-primary' : 'text-foreground-tertiary group-hover:text-foreground-primary'
-                  }`}>
+                  <span className="text-sm font-medium tracking-tight">
                     {item.label}
                   </span>
                 </div>
@@ -101,7 +83,7 @@ export default function Sidebar({ onToggle }: SidebarProps) {
                 {item.submenu && (
                   <ChevronDown 
                     size={14} 
-                    className={`text-foreground-tertiary transition-transform duration-300 ${expandedMenu === item.id ? 'rotate-180' : ''}`}
+                    className={`text-muted-foreground transition-transform duration-150 ${expandedMenu === item.id ? 'rotate-180' : ''}`}
                   />
                 )}
               </motion.button>
@@ -112,17 +94,17 @@ export default function Sidebar({ onToggle }: SidebarProps) {
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden ml-4 pl-4 border-l border-white/5 mt-1 space-y-1"
+                  className="mt-1 ml-3 overflow-hidden border-l border-white/5 pl-4 space-y-1"
                 >
                   {item.id === 'tools' && toolsSubmenu.map((tool) => (
                     <motion.button
                       key={tool.id}
-                      whileHover={{ x: 4, backgroundColor: 'rgba(255,255,255,0.02)' }}
+                      whileHover={{ opacity: 0.85 }}
                       onClick={() => setLocation('/tools')}
-                      className="w-full text-left px-4 py-2.5 rounded-lg text-[13px] font-medium text-foreground-tertiary hover:text-foreground-secondary flex items-center justify-between group"
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[13px] text-muted-foreground transition-colors duration-150 hover:text-foreground"
                     >
                       {tool.label}
-                      <span className={`w-1.5 h-1.5 rounded-full ${tool.status === 'connected' ? 'bg-accent-green shadow-[0_0_8px_#32D74B]' : 'bg-white/10'}`} />
+                      <span className={`h-1.5 w-1.5 rounded-full ${tool.status === 'connected' ? 'bg-foreground' : 'bg-white/15'}`} />
                     </motion.button>
                   ))}
                 </motion.div>
@@ -133,25 +115,24 @@ export default function Sidebar({ onToggle }: SidebarProps) {
       })}
     </div>
 
-      {/* Profile / Bottom Section */}
-      <div className="p-6 border-t border-white/5 space-y-3">
+      <div className="mt-6 border-t border-white/5 pt-5 space-y-2">
         <motion.button
-          whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
+          whileHover={{ opacity: 0.85 }}
           onClick={() => setLocation('/settings')}
-          className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-foreground-tertiary hover:text-foreground-primary transition-colors"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-muted-foreground transition-colors duration-150 hover:text-foreground"
         >
-          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center overflow-hidden border border-white/10">
-            <Settings size={16} />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
+            <Settings size={15} />
           </div>
           <span className="text-sm font-medium">System Settings</span>
         </motion.button>
         
         <motion.button
-          whileHover={{ backgroundColor: 'rgba(255,59,48,0.05)' }}
-          className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-accent-red/60 hover:text-accent-red transition-colors"
+          whileHover={{ opacity: 0.9 }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-muted-foreground transition-colors duration-150 hover:text-foreground"
         >
-          <div className="w-8 h-8 rounded-full bg-accent-red/10 flex items-center justify-center overflow-hidden border border-accent-red/10">
-            <LogOut size={16} />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
+            <LogOut size={15} />
           </div>
           <span className="text-sm font-medium">Terminate Session</span>
         </motion.button>

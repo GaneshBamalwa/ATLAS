@@ -1,63 +1,89 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   orchestrator:
-    build:
-      context: ./services/orchestrator
-      dockerfile: Dockerfile
+    build: ./services/orchestrator
     ports:
       - "9000:9000"
     env_file: .env
+    environment:
+      - ORCHESTRATOR_HOST=0.0.0.0
+      - ORCHESTRATOR_PORT=9000
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
-      - google-mcp
-      - memory
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   google-mcp:
-    build:
-      context: ./services/google-mcp
-      dockerfile: Dockerfile
+    build: ./services/google-mcp
     ports:
       - "8000:8000"
     env_file: .env
     volumes:
       - ./services/google-mcp/tokens:/app/tokens
       - ./services/google-mcp/downloads:/app/downloads
-
-  agent-daemon:
-    build:
-      context: ./services/agent-daemon
-      dockerfile: Dockerfile
-    ports:
-      - "9001:9001"
-    env_file: .env
     depends_on:
       - orchestrator
-      - google-mcp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   memory:
-    build:
-      context: ./services/memory
-      dockerfile: Dockerfile
+    build: ./services/memory
     ports:
       - "8002:8002"
     env_file: .env
-    volumes:
-      - ./services/memory/chroma_db:/app/chroma_db
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-  redis:
-    image: redis:alpine
+  agent-daemon:
+    build: ./services/agent-daemon
     ports:
-      - "6379:6379"
-
-  web-console:
-    build:
-      context: ./apps/web-console
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+      - "9001:9001"
+    env_file: .env
     environment:
-      - VITE_ORCHESTRATOR_URL=http://localhost:9000
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     depends_on:
       - orchestrator
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  web-console:
+    build: ./apps/web-console
+    ports:
+      - "3000:3000"
+    env_file: .env
+    depends_on:
+      - orchestrator
+
+networks: {}

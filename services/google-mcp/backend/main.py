@@ -22,7 +22,8 @@ from backend.mcp_tools import (
     get_drive_share_link_tool,
     list_calendar_events_tool,
     add_calendar_event_tool,
-    delete_calendar_event_tool
+    delete_calendar_event_tool,
+    clear_calendar_schedule_tool
 )
 from backend.gmail_auth import auth_router
 from backend.llm_chains import draft_new_email
@@ -122,6 +123,10 @@ def api_add_calendar_event(summary: str, date: str, start_time: str, duration: i
 @app.delete("/api/calendar/events/{event_id}")
 def api_delete_calendar_event(event_id: str, user_id: str = Depends(get_current_user)):
     return delete_calendar_event_tool(user_id, event_id)
+
+@app.post("/api/calendar/clear")
+def api_clear_calendar_schedule(date: str, start_time: str = None, end_time: str = None, user_id: str = Depends(get_current_user)):
+    return clear_calendar_schedule_tool(user_id, date, start_time, end_time)
 
 @app.get("/health")
 def health_check():

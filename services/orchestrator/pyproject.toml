@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atlas-orchestrator"
+version = "2.0.0"
+description = "ATLAS Orchestrator - Central AI reasoning and tool execution engine"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.1",
+    "python-dotenv>=1.0.1",
+    "tenacity>=8.3.0",
+    "python-multipart>=0.0.9",
+    "groq>=0.4.0",
+    "aiohttp>=3.9.0",
+    "redis>=5.0.0",
+    "langgraph>=0.0.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[[tool.setuptools.packages.find]]
+where = ["."]
+include = ["app*"]

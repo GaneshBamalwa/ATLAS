@@ -24,12 +24,11 @@ export default function AnimatedButton({
     'font-heading rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2';
 
   const variantClasses = {
-    primary:
-      'bg-gradient-to-r from-accent-neon-blue to-accent-purple text-white hover:shadow-premium-lg glow-blue',
+    primary: 'bg-primary text-white hover:bg-primary/90',
     secondary:
-      'glass-panel-interactive text-foreground hover:bg-glass-opacity-3 border-glass-border',
-    ghost: 'text-foreground hover:bg-glass-opacity-2',
-    danger: 'bg-destructive/20 text-destructive border border-destructive/50 hover:bg-destructive/30',
+      'glass-panel-interactive text-foreground hover:bg-white/[0.05] border border-white/8',
+    ghost: 'text-foreground hover:bg-white/[0.04]',
+    danger: 'border border-white/8 bg-transparent text-destructive hover:bg-white/[0.04]',
   };
 
   const sizeClasses = {

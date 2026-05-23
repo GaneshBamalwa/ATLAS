@@ -2,7 +2,7 @@ import logging
 import base64
 import concurrent.futures
 from tenacity import retry, stop_after_attempt, wait_exponential
-from backend.gmail_auth import get_gmail_service, get_drive_service, get_calendar_service
+from backend.gmail_auth import get_gmail_service, get_drive_service, get_calendar_service, get_user_profile_metadata
 from googleapiclient.http import MediaFileUpload
 from backend.utils import decode_base64_url, create_raw_email, save_attachment
 from backend.llm_chains import (
@@ -23,6 +23,19 @@ logger = logging.getLogger(__name__)
 def formatted_error(msg: str, err_type: str = "InternalError", retryable: bool = False):
     return {"error": {"message": msg, "type": err_type, "retryable": retryable}}
 
+
+def _extract_message_metadata(message: dict) -> dict:
+    payload = message.get("payload", {}) or {}
+    headers = payload.get("headers", []) or []
+    subject = next((h.get("value", "") for h in headers if h.get("name", "").lower() == "subject"), "No Subject")
+    sender = next((h.get("value", "") for h in headers if h.get("name", "").lower() == "from"), "Unknown")
+    return {
+        "id": message.get("id"),
+        "subject": subject or "No Subject",
+        "from": sender or "Unknown",
+        "body": "",
+    }
+
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
 def resilient_gmail_call(func, *args, **kwargs):
     return func(*args, **kwargs)
@@ -36,23 +49,62 @@ def list_unread_emails_tool(user_id: str, max_results: int = 10):
         
         if not messages:
             return {"status": "success", "count": 0, "unread_inbox_list": []}
-            
-        # 1. Fetch raw details for all messages in parallel (Batch metadata/body fetch)
+
+        # 1. Fetch metadata in one Gmail batch request to keep unread listing fast.
         raw_emails = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=settings.MAX_WORKERS) as executor:
-            # We call read_email_tool with metadata_only=True for lightning fast list views
-            futures = [executor.submit(read_email_tool, user_id, m['id'], summarize=False, service=service, skip_subject_gen=True, bypass_intelligence=True, metadata_only=True) for m in messages]
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    res = future.result()
-                    # Even if there's an error dict return, we extract at least what we can
-                    if isinstance(res, dict) and "error" in res:
-                        # Fallback for individual error: at least show the ID if we can't fetch detail
-                        raw_emails.append({"id": "Unknown", "subject": "Error loading detail", "from": "Unknown"})
-                    else:
-                        raw_emails.append(res)
-                except Exception as e:
-                    logger.error(f"Failed to fetch raw email: {e}")
+        batch_responses: dict[str, dict] = {}
+
+        def _batch_callback(request_id, response, exception):
+            if exception is not None:
+                batch_responses[str(request_id)] = {"error": str(exception)}
+            else:
+                batch_responses[str(request_id)] = response or {}
+
+        try:
+            batch = service.new_batch_http_request(callback=_batch_callback)
+            for index, message in enumerate(messages):
+                batch.add(
+                    service.users().messages().get(
+                        userId='me',
+                        id=message['id'],
+                        format='metadata',
+                        metadataHeaders=['Subject', 'From'],
+                    ),
+                    request_id=str(index),
+                )
+            batch.execute()
+
+            for index in range(len(messages)):
+                payload = batch_responses.get(str(index), {})
+                if payload.get("error"):
+                    raw_emails.append({"id": messages[index].get("id"), "subject": "Error loading detail", "from": "Unknown"})
+                else:
+                    raw_emails.append(_extract_message_metadata(payload))
+        except Exception as batch_error:
+            logger.warning(f"Batch unread fetch failed, falling back to threaded fetch: {batch_error}")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(settings.MAX_WORKERS, max(1, len(messages)))) as executor:
+                futures = [
+                    executor.submit(
+                        read_email_tool,
+                        user_id,
+                        m['id'],
+                        summarize=False,
+                        service=service,
+                        skip_subject_gen=True,
+                        bypass_intelligence=True,
+                        metadata_only=True,
+                    )
+                    for m in messages
+                ]
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        res = future.result()
+                        if isinstance(res, dict) and "error" in res:
+                            raw_emails.append({"id": "Unknown", "subject": "Error loading detail", "from": "Unknown"})
+                        else:
+                            raw_emails.append(res)
+                    except Exception as e:
+                        logger.error(f"Failed to fetch raw email: {e}")
 
         # 2. Batch process intelligence (optional phase)
         intelligence_map = {}
@@ -167,7 +219,9 @@ def read_email_tool(user_id: str, message_id: str, summarize: bool = False, incl
 def send_email_tool(user_id: str, to: str, subject: str, body: str):
     try:
         service = get_gmail_service(user_id)
-        raw_msg = create_raw_email("me", to, subject, body)
+        profile = get_user_profile_metadata(user_id, "gmail")
+        sender_name = (profile.get("name") or "").strip() or None
+        raw_msg = create_raw_email("me", to, subject, body, sender_name=sender_name)
         request = service.users().messages().send(userId='me', body=raw_msg)
         sent_message = resilient_gmail_call(request.execute)
         return {"status": "success", "messageId": sent_message['id']}
@@ -489,4 +543,54 @@ def delete_calendar_event_tool(user_id: str, event_id: str):
         return {"status": "success", "event_id": event_id, "action": "deleted"}
     except Exception as e:
         logger.error(f"Error deleting calendar event: {e}")
+        return formatted_error(str(e), "CalendarAPIError", True)
+
+def clear_calendar_schedule_tool(user_id: str, date_str: str, start_time: str = None, end_time: str = None):
+    """Delete all Google Calendar events for a specific date, optionally within a time range."""
+    try:
+        # Use existing list to get events
+        result = list_calendar_events_tool(user_id, date_str=date_str, days_ahead=1)
+        if "error" in result:
+            return result
+        
+        events = result.get("events", [])
+        if not events:
+            return {"status": "success", "message": "No events found to delete."}
+            
+        # Filter by time range if provided (format HH:MM)
+        if start_time or end_time:
+            filtered_events = []
+            for event in events:
+                event_start = event.get("start", "")
+                # Extract HH:MM from ISO format e.g. 2026-05-24T14:30:00+05:30
+                if "T" in event_start:
+                    time_part = event_start.split("T")[1][:5]
+                    if start_time and time_part < start_time:
+                        continue
+                    if end_time and time_part > end_time:
+                        continue
+                filtered_events.append(event)
+            events = filtered_events
+
+        if not events:
+            return {"status": "success", "message": "No events found in the specified time range."}
+        
+        service = get_calendar_service(user_id)
+        deleted_count = 0
+        failed = []
+        for event in events:
+            try:
+                service.events().delete(calendarId='primary', eventId=event["id"]).execute()
+                deleted_count += 1
+            except Exception as e:
+                failed.append({"id": event["id"], "error": str(e)})
+        
+        return {
+            "status": "success", 
+            "deleted_count": deleted_count, 
+            "failed_count": len(failed),
+            "failed_details": failed
+        }
+    except Exception as e:
+        logger.error(f"Error clearing calendar schedule: {e}")
         return formatted_error(str(e), "CalendarAPIError", True)

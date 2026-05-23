@@ -321,10 +321,63 @@ class ToolRegistry:
     def all_tools(self) -> List[ToolDefinition]:
         return list(self._tools.values())
 
+    def get_all_tools(self) -> List[ToolDefinition]:
+        """Alias for all_tools to satisfy plugin architecture requirements."""
+        return self.all_tools()
+
+    def register_plugin_tool(self, plugin_manifest: dict) -> None:
+        """Register a single tool from a plugin manifest dict."""
+        from app.utils.logger import logger
+        
+        try:
+            # Basic validation
+            required_fields = ["name", "description", "input_schema", "endpoint"]
+            missing = [field for field in required_fields if field not in plugin_manifest]
+            if missing:
+                logger.error(f"[TOOL REGISTRY] Plugin is missing required fields: {missing}")
+                return
+                
+            requires_user_id = plugin_manifest.get("requires_user_id", True)
+            if "auth_type" in plugin_manifest and plugin_manifest["auth_type"] == "none":
+                requires_user_id = False
+                
+            tool_def = ToolDefinition(
+                name=plugin_manifest["name"],
+                description=plugin_manifest["description"],
+                input_schema=plugin_manifest["input_schema"],
+                endpoint=plugin_manifest["endpoint"],
+                http_method=plugin_manifest.get("http_method", "GET"),
+                requires_user_id=requires_user_id,
+                tags=plugin_manifest.get("tags", []),
+                path_param=plugin_manifest.get("path_param")
+            )
+            
+            # Warn and reject if overwriting
+            if tool_def.name in self._tools:
+                logger.warning(f"[TOOL REGISTRY] Duplicate tool name rejected: {tool_def.name}")
+                return
+                
+            self._tools[tool_def.name] = tool_def
+            logger.info(f"[TOOL REGISTRY] Successfully registered plugin tool: {tool_def.name}")
+        except Exception as e:
+            logger.error(f"[TOOL REGISTRY] Failed to register plugin tool: {e}")
+
+    def load_plugins_from_directory(self, path: str) -> None:
+        """Load and register all plugins from a directory."""
+        from app.plugins.loader import load_plugins_from_directory
+        from app.utils.logger import logger
+        
+        plugins = load_plugins_from_directory(path)
+        for t in plugins:
+            if t.name in self._tools:
+                logger.warning(f"[TOOL REGISTRY] Duplicate tool name rejected: {t.name}")
+                continue
+            self._tools[t.name] = t
+
     def tool_descriptions_for_prompt(self) -> str:
         """Render all tools as a clean string for LLM system prompts."""
         lines = []
-        for t in self._tools.values():
+        for t in self.get_all_tools():
             props = t.input_schema.get("properties", {})
             required = t.input_schema.get("required", [])
             args_desc = ", ".join(
@@ -342,3 +395,24 @@ registry = ToolRegistry()
 registry.register(GMAIL_TOOLS)
 registry.register(DRIVE_TOOLS)
 registry.register(CALENDAR_TOOLS)
+
+# Dynamically load plugins from the plugins directory
+import os
+import threading
+from app.utils.logger import logger
+
+# Try loading plugins from a standard location
+PLUGINS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "plugins")
+registry.load_plugins_from_directory(PLUGINS_DIR)
+
+def reload_plugins():
+    """Manual reload function for plugin hot reloading."""
+    logger.info("[TOOL REGISTRY] Reloading plugins...")
+    # Clear the entire registry
+    registry._tools.clear()
+    # Re-register hardcoded tools
+    registry.register(GMAIL_TOOLS)
+    registry.register(DRIVE_TOOLS)
+    registry.register(CALENDAR_TOOLS)
+    # Reload plugins from directory
+    registry.load_plugins_from_directory(PLUGINS_DIR)

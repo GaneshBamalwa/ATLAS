@@ -16,10 +16,8 @@ export default function FloatingActionButton({
   variant = 'primary',
 }: FloatingActionButtonProps) {
   const variantClasses = {
-    primary:
-      'bg-gradient-to-r from-accent-neon-blue to-accent-purple text-white glow-blue hover:shadow-premium-xl',
-    secondary:
-      'glass-panel-interactive text-foreground hover:bg-glass-opacity-3 border-glass-border',
+    primary: 'bg-primary text-white hover:bg-primary/90',
+    secondary: 'glass-panel-interactive text-foreground hover:bg-white/[0.05] border border-white/8',
   };
 
   return (
@@ -29,11 +27,7 @@ export default function FloatingActionButton({
       onClick={onClick}
       className={`fixed bottom-8 right-8 w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-premium-lg ${variantClasses[variant]} ${className}`}
     >
-      <motion.div
-        animate={{ rotate: [0, 360] }}
-        transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-        className="absolute inset-0 rounded-full bg-gradient-to-r from-accent-purple/20 to-accent-neon-blue/20 blur-xl"
-      />
+      <motion.div animate={{ opacity: [0.35, 0.55, 0.35] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }} className="absolute inset-0 rounded-full bg-white/5 blur-xl" />
       <motion.div
         animate={{ scale: [1, 1.1, 1] }}
         transition={{ duration: 2, repeat: Infinity }}

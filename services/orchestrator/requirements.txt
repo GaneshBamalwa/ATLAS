@@ -6,6 +6,13 @@ pydantic-settings>=2.2.1
 python-dotenv>=1.0.1
 tenacity>=8.3.0
 python-multipart>=0.0.9
+redis>=5.0.0
+langgraph>=0.0.10
 groq
+aiohttp>=3.8.4
+openai>=0.27.0
+# Optional: if you want an official Mistral client, install it separately.
+# The code in this repo uses simple HTTP calls to Mistral/OpenRouter so aiohttp
+# + openai (or groq) are sufficient.
 redis>=5.0.0
 langgraph>=0.0.10

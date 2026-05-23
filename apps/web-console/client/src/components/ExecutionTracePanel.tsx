@@ -84,96 +84,98 @@ export default function ExecutionTracePanel({ onToggle }: ExecutionTracePanelPro
       </div>
 
       {/* Main Stream Area */}
-      <StaggerContainer className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
-        {steps.map((step, index) => (
-          <FadeIn key={step.id}>
-            <div className="relative group">
-              {/* Timeline Connector */}
-              {index < steps.length - 1 && (
-                <div className="absolute left-[13px] top-8 bottom-[-24px] w-0.5 bg-gradient-to-b from-white/10 via-white/5 to-transparent" />
-              )}
-              
-              <div className="flex gap-6">
-                {/* Node Indicator */}
-                <div className="relative flex-shrink-0 z-10">
-                  <motion.div 
-                    initial={false}
-                    animate={{
-                      scale: step.status === 'running' ? [1, 1.3, 1] : 1,
-                      backgroundColor: step.status === 'completed' ? 'var(--accent-green)' : step.status === 'running' ? 'var(--accent-purple)' : 'transparent'
-                    }}
-                    className={`w-[26px] h-[26px] rounded-full border-2 border-white/10 flex items-center justify-center bg-depth-bg-secondary ${
-                      step.status === 'running' ? 'shadow-[0_0_15px_rgba(191,90,242,0.4)]' : ''
-                    }`}
-                  >
-                    {getStatusIcon(step.status)}
-                  </motion.div>
-                </div>
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 scrollbar-hide">
+        <StaggerContainer className="space-y-6">
+          {steps.map((step, index) => (
+            <FadeIn key={step.id}>
+              <div className="relative group">
+                {/* Timeline Connector */}
+                {index < steps.length - 1 && (
+                  <div className="absolute left-[13px] top-8 bottom-[-24px] w-0.5 bg-gradient-to-b from-white/10 via-white/5 to-transparent" />
+                )}
+                
+                <div className="flex gap-6">
+                  {/* Node Indicator */}
+                  <div className="relative flex-shrink-0 z-10">
+                    <motion.div 
+                      initial={false}
+                      animate={{
+                        scale: step.status === 'running' ? [1, 1.3, 1] : 1,
+                        backgroundColor: step.status === 'completed' ? 'var(--accent-green)' : step.status === 'running' ? 'var(--accent-purple)' : 'transparent'
+                      }}
+                      className={`w-[26px] h-[26px] rounded-full border-2 border-white/10 flex items-center justify-center bg-depth-bg-secondary ${
+                        step.status === 'running' ? 'shadow-[0_0_15px_rgba(191,90,242,0.4)]' : ''
+                      }`}
+                    >
+                      {getStatusIcon(step.status)}
+                    </motion.div>
+                  </div>
 
-                {/* Step Content Card */}
-                <div className="flex-1 min-w-0">
-                  <GlassCard 
-                    onClick={() => setExpandedStep(expandedStep === step.id ? null : step.id)}
-                    className={`p-4 border-white/5 transition-all duration-500 cursor-pointer ${
-                      expandedStep === step.id ? 'ring-1 ring-white/10 bg-white/10 shadow-2xl' : 'hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <h4 className={`text-[13px] font-black uppercase tracking-widest transition-colors duration-300 ${
-                          step.status === 'running' ? 'text-accent-purple' : 'text-foreground-primary'
-                        }`}>
-                          {step.tool}
-                        </h4>
-                        <p className="text-[11px] text-foreground-tertiary font-medium mt-1 leading-relaxed">
-                          {step.details}
-                        </p>
+                  {/* Step Content Card */}
+                  <div className="flex-1 min-w-0">
+                    <GlassCard 
+                      onClick={() => setExpandedStep(expandedStep === step.id ? null : step.id)}
+                      className={`p-4 border-white/5 transition-all duration-500 cursor-pointer ${
+                        expandedStep === step.id ? 'ring-1 ring-white/10 bg-white/10 shadow-2xl' : 'hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <h4 className={`text-[13px] font-black uppercase tracking-widest transition-colors duration-300 ${
+                            step.status === 'running' ? 'text-accent-purple' : 'text-foreground-primary'
+                          }`}>
+                            {step.tool}
+                          </h4>
+                          <p className="text-[11px] text-foreground-tertiary font-medium mt-1 leading-relaxed">
+                            {step.details}
+                          </p>
+                        </div>
+                        <ChevronDown 
+                          size={14} 
+                          className={`text-foreground-tertiary transition-transform duration-300 mt-1 ${expandedStep === step.id ? 'rotate-180' : ''}`}
+                        />
                       </div>
-                      <ChevronDown 
-                        size={14} 
-                        className={`text-foreground-tertiary transition-transform duration-300 mt-1 ${expandedStep === step.id ? 'rotate-180' : ''}`}
-                      />
-                    </div>
 
-                    <AnimatePresence>
-                      {expandedStep === step.id && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden mt-4 pt-4 border-t border-white/5 space-y-4"
-                        >
-                          {step.result && (
-                            <div className="space-y-2">
-                              <p className="text-[10px] uppercase tracking-widest font-black text-accent-blue/60">Output Result</p>
-                              <div className="bg-black/40 rounded-xl p-3 border border-white/5 font-code text-[11px] text-accent-cyan break-all leading-relaxed shadow-inner">
-                                {step.result}
-                              </div>
-                            </div>
-                          )}
-                          
-                          <div className="flex items-center gap-6">
-                            <div>
-                              <p className="text-[9px] uppercase tracking-widest font-black text-foreground-tertiary">Started At</p>
-                              <p className="text-[11px] font-bold text-foreground-secondary mt-0.5">{step.startTime.toLocaleTimeString()}</p>
-                            </div>
-                            {step.endTime && (
-                              <div>
-                                <p className="text-[9px] uppercase tracking-widest font-black text-foreground-tertiary">Completed At</p>
-                                <p className="text-[11px] font-bold text-foreground-secondary mt-0.5">{step.endTime.toLocaleTimeString()}</p>
+                      <AnimatePresence>
+                        {expandedStep === step.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden mt-4 pt-4 border-t border-white/5 space-y-4"
+                          >
+                            {step.result && (
+                              <div className="space-y-2">
+                                <p className="text-[10px] uppercase tracking-widest font-black text-accent-blue/60">Output Result</p>
+                                <div className="bg-black/40 rounded-xl p-3 border border-white/5 font-code text-[11px] text-accent-cyan break-all leading-relaxed shadow-inner">
+                                  {step.result}
+                                </div>
                               </div>
                             )}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </GlassCard>
+                            
+                            <div className="flex items-center gap-6">
+                              <div>
+                                <p className="text-[9px] uppercase tracking-widest font-black text-foreground-tertiary">Started At</p>
+                                <p className="text-[11px] font-bold text-foreground-secondary mt-0.5">{step.startTime.toLocaleTimeString()}</p>
+                              </div>
+                              {step.endTime && (
+                                <div>
+                                  <p className="text-[9px] uppercase tracking-widest font-black text-foreground-tertiary">Completed At</p>
+                                  <p className="text-[11px] font-bold text-foreground-secondary mt-0.5">{step.endTime.toLocaleTimeString()}</p>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </GlassCard>
+                  </div>
                 </div>
               </div>
-            </div>
-          </FadeIn>
-        ))}
-      </StaggerContainer>
+            </FadeIn>
+          ))}
+        </StaggerContainer>
+      </div>
 
       {/* Summary Footer Statistics */}
       <div className="p-6 border-t border-white/5 bg-white/[0.02]">

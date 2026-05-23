@@ -31,6 +31,12 @@ import logging
 
 settings = get_settings()
 
+RETRYABLE_HTTPX_EXCEPTIONS = (
+    httpx.ConnectError,
+    httpx.ReadError,
+    httpx.RemoteProtocolError,
+)
+
 
 def _build_url(tool_def: ToolDefinition, arguments: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
     """
@@ -58,7 +64,7 @@ def _make_headers(user_id: Optional[str]) -> Dict[str, str]:
 @retry(
     stop=stop_after_attempt(settings.max_retries),
     wait=wait_exponential(multiplier=settings.retry_backoff, min=1, max=10),
-    retry=retry_if_exception_type(httpx.ConnectError),
+    retry=retry_if_exception_type(RETRYABLE_HTTPX_EXCEPTIONS),
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True,
 )
@@ -68,9 +74,12 @@ async def _http_call(
     params: Optional[Dict] = None,
     json_body: Optional[Dict] = None,
     headers: Optional[Dict] = None,
+    timeout: float = None,
 ) -> Dict[str, Any]:
     """Async HTTP call with retry on network errors."""
-    async with httpx.AsyncClient(timeout=settings.mcp_call_timeout) as client:
+    # Use provided timeout or fall back to config timeout
+    call_timeout = timeout if timeout is not None else settings.mcp_call_timeout
+    async with httpx.AsyncClient(timeout=call_timeout) as client:
         resp = await client.request(
             method=method,
             url=url,
@@ -137,9 +146,38 @@ async def execute_tool(tool_call: ToolCall, gmail_user_id: Optional[str] = None,
     start = time.perf_counter()
 
     try:
+        # Use shorter timeout for email operations (they should be fast)
+        if tool_call.tool == "list_unread_emails":
+            call_timeout = 45.0
+        elif "email" in tool_call.tool.lower() or "send" in tool_call.tool.lower():
+            call_timeout = 20.0
+        else:
+            call_timeout = settings.mcp_call_timeout
+        
         # Both GET and POST in this Gmail MCP implementation use query parameters
         # based on the error loc: ['query', 'to'] etc.
-        data = await _http_call(method, url, params=remaining_args, headers=headers)
+        data = await _http_call(method, url, params=remaining_args, headers=headers, timeout=call_timeout)
+
+        # Some MCP endpoints return HTTP 200 with an embedded error payload.
+        # Treat that as a failed tool execution so the user gets accurate status.
+        if isinstance(data, dict) and "error" in data:
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            err_obj = data.get("error") or {}
+            error_msg = err_obj.get("message") if isinstance(err_obj, dict) else str(err_obj)
+            error_msg = error_msg or "Tool execution failed."
+
+            lowered = error_msg.lower()
+            if "not authenticated" in lowered or "status code 401" in lowered or "401" in lowered:
+                error_msg = f"{service_name} is not authenticated. Please connect it first and then try again."
+
+            logger.error(f"[EXECUTOR] Tool '{tool_call.tool}' returned embedded error payload: {error_msg}")
+            return ToolResponse(
+                tool=tool_call.tool,
+                success=False,
+                error=error_msg,
+                data=data,
+                execution_time_ms=elapsed_ms,
+            )
 
         elapsed_ms = (time.perf_counter() - start) * 1000
         logger.info(f"[EXECUTOR] Tool '{tool_call.tool}' succeeded in {elapsed_ms:.1f}ms")
@@ -186,6 +224,26 @@ async def execute_tool(tool_call: ToolCall, gmail_user_id: Optional[str] = None,
             execution_time_ms=elapsed_ms,
         )
 
+    except httpx.ReadError as e:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.warning(f"[EXECUTOR] Read error calling '{tool_call.tool}' after {elapsed_ms:.1f}ms: {e}")
+        return ToolResponse(
+            tool=tool_call.tool,
+            success=False,
+            error="The downstream service closed the connection while responding. Please try again.",
+            execution_time_ms=elapsed_ms,
+        )
+
+    except httpx.RemoteProtocolError as e:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.warning(f"[EXECUTOR] Protocol error calling '{tool_call.tool}' after {elapsed_ms:.1f}ms: {e}")
+        return ToolResponse(
+            tool=tool_call.tool,
+            success=False,
+            error="The downstream service interrupted the response. Please try again.",
+            execution_time_ms=elapsed_ms,
+        )
+
     except Exception as e:
         elapsed_ms = (time.perf_counter() - start) * 1000
         logger.exception(f"[EXECUTOR] Unexpected error for tool '{tool_call.tool}': {e}")
@@ -208,10 +266,16 @@ def format_tool_result_as_text(tool_response: ToolResponse) -> str:
     if tool == "list_unread_emails":
         emails = data.get("emails", [])
         if not emails:
-            return "✅ Your inbox is clear! No unread emails were found."
+            return "Your inbox is clear. No unread emails were found."
         count = len(emails)
-        ids = "\n".join(f"  • **{e.get('subject', 'No Subject')}** (ID: `{e['id']}`)" for e in emails[:10])
-        return f"📬 I found **{count}** unread email(s) for you:\n\n{ids}\n\n_Tip: Mention an ID or subject if you want me to read one._"
+        items = "; ".join(
+            f"{index + 1}. {e.get('subject', 'No Subject')} from {e.get('from', 'Unknown')} (ID: {e.get('id', 'N/A')})"
+            for index, e in enumerate(emails[:10])
+        )
+        return (
+            f"I found {count} unread emails for you: {items}. "
+            f"Mention an ID or subject if you want me to read one."
+        )
 
     if tool == "read_email":
         subject = data.get("subject", "No Subject")
@@ -226,6 +290,12 @@ def format_tool_result_as_text(tool_response: ToolResponse) -> str:
         return result
 
     if tool == "send_email":
+        if isinstance(data, dict) and data.get("error"):
+            err = data.get("error")
+            msg = err.get("message") if isinstance(err, dict) else str(err)
+            if msg and ("not authenticated" in msg.lower() or "401" in msg.lower()):
+                return "⚠️ Gmail is not authenticated. Please connect Gmail first, then resend the email."
+            return f"❌ Failed to send email: {msg or 'Unknown error'}"
         if data.get("status") == "success":
             return f"✅ Email sent successfully! Message ID: `{data.get('messageId', 'N/A')}`"
         return f"❌ Failed to send email: {data.get('error', 'Unknown error')}"
