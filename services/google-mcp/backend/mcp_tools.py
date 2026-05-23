@@ -484,10 +484,35 @@ def add_calendar_event_tool(user_id: str, summary: str, date: str, start_time: s
     """Add a new event to Google Calendar with conflict detection."""
     try:
         service = get_calendar_service(user_id)
-        
+
+        # ── Resolve relative date strings ────────────────────────────────────
+        today = datetime.now().date()
+        date_norm = date.strip().lower()
+        if date_norm in ("today", "tonight"):
+            date = today.strftime("%Y-%m-%d")
+        elif date_norm == "tomorrow":
+            date = (today + dt.timedelta(days=1)).strftime("%Y-%m-%d")
+        # keep date as-is if it already looks like YYYY-MM-DD
+
+        # ── Resolve 12-hour time → HH:MM 24-hour ────────────────────────────
+        import re as _re
+        time_norm = start_time.strip()
+        # Matches patterns: "6 pm", "6:30 pm", "06:30 PM", "6PM", etc.
+        _12h = _re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", time_norm, _re.IGNORECASE)
+        if _12h:
+            hour = int(_12h.group(1))
+            minute = int(_12h.group(2)) if _12h.group(2) else 0
+            period = _12h.group(3).lower()
+            if period == "pm" and hour != 12:
+                hour += 12
+            elif period == "am" and hour == 12:
+                hour = 0
+            start_time = f"{hour:02d}:{minute:02d}"
+
         # Parse start and end times
         start_dt = datetime.fromisoformat(f"{date}T{start_time}")
         end_dt = start_dt + dt.timedelta(minutes=duration_minutes)
+
         
         time_min = start_dt.isoformat() + "+05:30"
         time_max = end_dt.isoformat() + "+05:30"

@@ -74,7 +74,12 @@ class GroqRouter:
 
     async def plan_tools(self, query: str, tool_registry: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
         tools_text = self._tool_registry_text(tool_registry)
-        current_time = datetime.now().strftime("%A, %B %d, %Y %I:%M %p")
+        now = datetime.now()
+        current_time = now.strftime("%A, %B %d, %Y %I:%M %p")
+        today_iso = now.strftime("%Y-%m-%d")
+        from datetime import timedelta
+        tomorrow_iso = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+
         system_prompt = (
             f"You are ATLAS, an orchestration planner. The current date and time is {current_time}. "
             "Analyze the user query and return ONLY valid JSON. "
@@ -102,7 +107,17 @@ class GroqRouter:
             "4. Never invent tools, fields, or IDs.\n"
             "5. Always include a short reasoning string.\n"
             "6. Return JSON only.\n\n"
-            "JSON schema:\n"
+            "DATE/TIME RULES — MANDATORY, always follow these when building tool params:\n"
+            f"  - Today's date is {today_iso} and tomorrow's date is {tomorrow_iso}.\n"
+            "  - ALWAYS resolve relative date words to absolute YYYY-MM-DD dates.\n"
+            f"    'today' or 'tonight' -> '{today_iso}'\n"
+            f"    'tomorrow' -> '{tomorrow_iso}'\n"
+            "    'next Monday' etc -> compute the actual calendar date as YYYY-MM-DD\n"
+            "  - ALWAYS convert 12-hour time expressions to 24-hour HH:MM for tool params.\n"
+            "    '6 pm' -> '18:00'  |  '6:00 PM' -> '18:00'  |  '9 am' -> '09:00'\n"
+            "    '12 noon' -> '12:00'  |  '12 midnight' -> '00:00'  |  '6:30 pm' -> '18:30'\n"
+            "  - For add_calendar_event: 'date' MUST be YYYY-MM-DD, 'start_time' MUST be HH:MM (24-hour).\n"
+            "  - NEVER pass relative strings like 'tomorrow', '6 pm', 'next week' as tool param values.\n\n"
             '{"tools":[{"name":"tool_name","params":{}}],"reasoning":"why these tools"}'
         )
         user_prompt = f"User query: {query}"
@@ -133,7 +148,7 @@ class GroqRouter:
                 return "Google Drive profile information is not available through the current Drive tools. I can search, read, trash, or share files instead."
             if "gmail profile" in lowered_query or "email profile" in lowered_query:
                 return "Gmail profile information is not available through the current tools. I can search your inbox, read messages, or list unread emails instead."
-            return "I couldn’t find a direct tool result for that request. Try a more specific Google Drive, Gmail, or Calendar action."
+            return "I couldn't find a direct tool result for that request. Try a more specific Google Drive, Gmail, or Calendar action."
 
         results_str = json.dumps(tool_results, indent=2, ensure_ascii=False, default=str)
         system_prompt = (

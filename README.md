@@ -213,3 +213,72 @@ cd services/orchestrator && uvicorn app.main:app --reload --port 9000
 # Start Frontend Console
 cd apps/web-console && pnpm install && pnpm dev
 ```
+
+---
+
+## 📸 Early-Stage Results & Execution Flows
+
+> **The [`results/`](./results) folder contains real screenshots from live ATLAS sessions.**
+>
+> Each entry shows both the **console response** (what ATLAS returned to the user) and the **DAG execution flow** as rendered by the live ReactFlow pipeline monitor — a side-by-side view of natural language output and the underlying tool orchestration that produced it.
+>
+> These captures demonstrate the full end-to-end pipeline at an early stage of development: parallel tool dispatching, dependency-aware chaining, and per-prompt isolated execution traces.
+
+---
+
+### 🔷 Prompt 1 — Gmail Integration
+
+<table>
+<tr>
+<th>💬 Console Output</th>
+<th>🔀 DAG Execution Flow</th>
+</tr>
+<tr>
+<td><img src="./results/prompt_1.png" alt="Prompt 1 console output" width="100%"/></td>
+<td><img src="./results/prompt_1_flow.png" alt="Prompt 1 DAG flow" width="100%"/></td>
+</tr>
+</table>
+
+---
+
+### 🔷 Prompt 2 — Drive Search → Email Chain
+
+<table>
+<tr>
+<th>💬 Console Output</th>
+<th>🔀 DAG Execution Flow</th>
+</tr>
+<tr>
+<td><img src="./results/prompt_2.png" alt="Prompt 2 console output" width="100%"/></td>
+<td><img src="./results/prompt_2_flow.png" alt="Prompt 2 DAG flow" width="100%"/></td>
+</tr>
+</table>
+
+---
+
+### 🔷 Prompt 3 — Multi-Tool Parallel Batch
+
+<table>
+<tr>
+<th>💬 Console Output</th>
+<th>🔀 DAG Execution Flow</th>
+</tr>
+<tr>
+<td><img src="./results/prompt_3.png" alt="Prompt 3 console output" width="100%"/></td>
+<td><img src="./results/prompt_3_flow.png" alt="Prompt 3 DAG flow" width="100%"/></td>
+</tr>
+</table>
+
+---
+
+### 📧 Gmail Account — Live Result
+
+<p align="center">
+  <img src="./results/gmail_result.png" alt="Gmail live result" width="80%"/>
+</p>
+
+---
+
+> 💡 **Each execution flow is generated in real-time and scoped to a single `request_id`.** The pipeline monitor sidebar labels each trace with the actual user query, so every prompt has its own independently inspectable DAG — no cross-contamination between sessions.
+
+---
