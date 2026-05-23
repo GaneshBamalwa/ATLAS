@@ -36,10 +36,16 @@ graph LR
     Exec3 --> Exec4[send_email]
     Exec4 --> Synthesis[Response Synthesis]
     Synthesis --> End([Final Response])
-    style Exec1 fill:#f9f,stroke:#333,stroke-width:2px
-    style Exec2 fill:#f9f,stroke:#333,stroke-width:2px
-    style Exec3 fill:#f9f,stroke:#333,stroke-width:2px
-    style Exec4 fill:#f9f,stroke:#333,stroke-width:2px
+
+    style User fill:#0f172a,stroke:#38bdf8,color:#38bdf8,stroke-width:2px
+    style Router fill:#1e293b,stroke:#475569,color:#cbd5e1,stroke-width:1px
+    style Planner fill:#1e293b,stroke:#475569,color:#cbd5e1,stroke-width:1px
+    style Exec1 fill:#881337,stroke:#be123c,color:#fda4af,stroke-width:2px
+    style Exec2 fill:#881337,stroke:#be123c,color:#fda4af,stroke-width:2px
+    style Exec3 fill:#881337,stroke:#be123c,color:#fda4af,stroke-width:2px
+    style Exec4 fill:#881337,stroke:#be123c,color:#fda4af,stroke-width:2px
+    style Synthesis fill:#1e293b,stroke:#475569,color:#cbd5e1,stroke-width:1px
+    style End fill:#0f172a,stroke:#34d399,color:#34d399,stroke-width:2px
 ```
 
 ### Current Architecture: DAG Parallel Execution (10-15s latency)
@@ -68,20 +74,87 @@ graph TD
     Exec4 --> Synthesis
     Synthesis --> End([Final Response])
     
-    style Exec1 fill:#bbf,stroke:#333,stroke-width:2px
-    style Exec3 fill:#bbf,stroke:#333,stroke-width:2px
-    style Exec2 fill:#f9b,stroke:#333,stroke-width:2px
-    style Exec4 fill:#f9b,stroke:#333,stroke-width:2px
+    style User fill:#0f172a,stroke:#38bdf8,color:#38bdf8,stroke-width:2px
+    style Router fill:#1e293b,stroke:#475569,color:#cbd5e1,stroke-width:1px
+    style Planner fill:#1e293b,stroke:#475569,color:#cbd5e1,stroke-width:1px
+    
+    style Exec1 fill:#115e59,stroke:#0d9488,color:#ccfbf1,stroke-width:2px
+    style Exec3 fill:#115e59,stroke:#0d9488,color:#ccfbf1,stroke-width:2px
+    
+    style Exec2 fill:#311042,stroke:#701a75,color:#fdf4ff,stroke-width:2px
+    style Exec4 fill:#311042,stroke:#701a75,color:#fdf4ff,stroke-width:2px
+    
+    style Synthesis fill:#14532d,stroke:#16a34a,color:#dcfce7,stroke-width:1px
+    style End fill:#0f172a,stroke:#34d399,color:#34d399,stroke-width:2px
 ```
 
 ---
 
-## 📊 Feature Set & Improvements
+## 🧠 Deep Dive: Dependent vs. Independent DAG Orchestration
 
-* **Live Execution Graph:** Renders real-time DAG nodes and interactive connection lines in the frontend console via ReactFlow. Click nodes to inspect inputs/outputs, latency, and status.
-* **Temporal Context Injection:** Prompt engines automatically receive the current calendar date and weekday, enabling accurate planning for relative queries (e.g. *"tomorrow at 6pm"*).
-* **Time-Ranged Bulk Calendar Clearing:** Instantly clear a full day's meetings or select specific timeframes (e.g. *"clear my afternoon between 2pm and 5pm"*).
-* **Integrations UX State-Locking:** Eliminates confusion on the Integrations page by displaying only the `Connect` option when logged out, and only the `Disconnect` option when authenticated.
+The core value of the ATLAS v2.0 engine lies in how it parses, structures, and executes tasks using a custom-built Directed Acyclic Graph (DAG) executor.
+
+### 1. Dependency Analysis & Planning
+When a user submits a prompt, the orchestrator asks the DAG Planner (powered by Groq) to output a structured JSON plan. The planner determines the exact tool dependencies by looking at whether one tool's input parameters rely on the output of a prior tool.
+
+* **Independent Tools:** Have no unresolved parameters and no parents listed in `dependencies`. They can execute immediately.
+* **Dependent Tools:** Contain placeholders like `{search_drive.files.0.id}` in their inputs and declare the source tool (e.g., `search_drive`) as a dependency.
+
+#### JSON Execution Plan Example:
+```json
+[
+  {
+    "tool": "search_drive",
+    "arguments": {
+      "query": "Hack2Skill presentation"
+    },
+    "dependencies": []
+  },
+  {
+    "tool": "get_drive_share_link",
+    "arguments": {
+      "file_id": "{search_drive.files.0.id}"
+    },
+    "dependencies": ["search_drive"]
+  },
+  {
+    "tool": "add_calendar_event",
+    "arguments": {
+      "summary": "Hack2Skill Project Sync",
+      "date": "2026-05-24",
+      "start_time": "18:00"
+    },
+    "dependencies": []
+  }
+]
+```
+
+### 2. Runtime Dependency Resolution
+During execution, the DAG runtime builds a task dependency tree.
+1. **First Wave (Parallel):** Both `search_drive` and `add_calendar_event` are dispatched in parallel.
+2. **Dynamic Interpolation:** Once `search_drive` finishes, its actual output (e.g., `{"files": [{"id": "1abcde..."}]}`) is cached.
+3. **Triggering Downstreams:** The engine searches for pending tools depending on `search_drive`. It resolves the placeholder `{search_drive.files.0.id}` to `"1abcde..."`, updates the parameters for `get_drive_share_link`, and immediately triggers it.
+4. **Final Chaining:** Once the share link is retrieved, it resolves any downstream tool using that link (e.g., an email body) and executes it.
+
+---
+
+## 📊 Live Flow Visualizer (ReactFlow Engine)
+
+ATLAS maps this execution state directly to an interactive, node-based Flow Visualizer built on **ReactFlow** and **Framer Motion**.
+
+### Visual Layout & Depths
+Rather than displaying a flat vertical list or a basic text trace, the visualizer maps the DAG's topological order into coordinates:
+* **Horizontal Alignment (Parallelism):** Nodes that have the same dependency depth are positioned side-by-side. If three tools are executing independently, they appear in a horizontal row, visually communicating concurrent execution.
+* **Vertical Stacking (Sequence):** Nodes with dependencies are positioned directly underneath their parent nodes, connected by smooth SVG cubic-bezier edges.
+
+### Live Node Interactivity
+Each node in the graph is a custom component designed to give complete observability:
+* **Color-Coded Statuses:** 
+  * `Idle` (Gray): Waiting for upstream execution.
+  * `Running` (Pulsating Blue): Currently executing.
+  * `Success` (Green): Execution complete.
+  * `Failed` (Red): Click to inspect error.
+* **Click-to-Inspect Drawer:** Clicking any node slides open a detailed telemetry drawer displaying the exact input payload, return JSON, execution duration (ms), and any network logs.
 
 ---
 
@@ -106,7 +179,7 @@ graph TD
 | Service | Port | Responsibility |
 | :-- | :-- | :-- |
 | **Web Console** | 5173 | Chat panel UI, ReactFlow execution graph page, OAuth integration controls. |
-| **Orchestrator** | 9000 | Compiles intent DAGs, resolves tool output placeholers, manages step telemetry. |
+| **Orchestrator** | 9000 | Compiles intent DAGs, resolves tool output placeholders, manages step telemetry. |
 | **Google MCP** | 8000 | Performs Gmail queries, Drive access, and Google Calendar operations via API. |
 | **Memory** | 8002 | Stores short-term and long-term user preferences via ChromaDB. |
 | **Agent Daemon** | 9001 | Handles passive/proactive triggers. |
