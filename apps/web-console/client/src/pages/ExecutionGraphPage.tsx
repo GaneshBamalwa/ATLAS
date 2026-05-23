@@ -27,6 +27,7 @@ interface RecentTrace {
   status: string;
   node_count: number;
   timestamp: string;
+  query?: string;
 }
 
 interface TimelineEvent {
@@ -151,8 +152,8 @@ export default function ExecutionGraphPage() {
                       <span className={`w-2 h-2 rounded-full ${trace.status === 'success' ? 'bg-accent-green shadow-[0_0_12px_#30D158]' : trace.status === 'running' ? 'bg-accent-blue animate-pulse shadow-[0_0_12px_#007AFF]' : 'bg-white/10'}`} />
                       <span className="text-[9px] font-mono text-white/20">{trace.execution_id.split('-')[0].toUpperCase()}</span>
                     </div>
-                    <p className="text-xs font-bold text-white/80 truncate">
-                      {trace.node_count > 5 ? 'Architectural Sequence' : 'Atomic Operation'}
+                    <p className="text-xs font-bold text-white/80 truncate" title={trace.query}>
+                      {trace.query}
                     </p>
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/[0.03]">
                       <span className="text-[9px] text-white/30 font-bold">{new Date(trace.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>

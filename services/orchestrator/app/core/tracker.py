@@ -9,9 +9,9 @@ _trace_store: Dict[str, ExecutionTrace] = {}
 def get_trace(execution_id: str) -> Optional[ExecutionTrace]:
     return _trace_store.get(execution_id)
 
-def init_trace(execution_id: str) -> ExecutionTrace:
+def init_trace(execution_id: str, query: Optional[str] = None) -> ExecutionTrace:
     if execution_id not in _trace_store:
-        _trace_store[execution_id] = ExecutionTrace(execution_id=execution_id, status="running")
+        _trace_store[execution_id] = ExecutionTrace(execution_id=execution_id, status="running", query=query)
     return _trace_store[execution_id]
 
 def emit_trace_event(
@@ -271,16 +271,14 @@ def get_timeline_data(execution_id: str) -> List[Dict[str, Any]]:
 def list_recent_traces(limit: int = 10) -> List[Dict[str, Any]]:
     """List recent traces with minimal metadata."""
     results = []
-    # Sort by recent (assuming newer traces are added later to the dict keys or we use start time)
-    # Since it's a dict, we'll just take the last N or sort by node count as a proxy for activity
-    # Actually, let's sort by started_at if we can.
     
     for eid, trace in _trace_store.items():
         results.append({
             "execution_id": eid,
             "status": trace.status,
+            "query": trace.query or "Atomic Operation",
             "node_count": len(trace.nodes),
-            "timestamp": trace.started_at.isoformat() if hasattr(trace, 'started_at') and trace.started_at else datetime.now(timezone.utc).isoformat()
+            "timestamp": trace.created_at.isoformat() if hasattr(trace, 'created_at') and trace.created_at else datetime.now(timezone.utc).isoformat()
         })
     
     # Sort by timestamp descending

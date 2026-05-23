@@ -24,6 +24,8 @@ class TraceEdge(BaseModel):
 class ExecutionTrace(BaseModel):
     execution_id: str
     status: str
+    query: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     nodes: List[TraceNode] = []
     edges: List[TraceEdge] = []
     total_latency_ms: float = 0.0

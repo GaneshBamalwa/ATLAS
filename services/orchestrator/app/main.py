@@ -234,9 +234,9 @@ def _substitute_placeholders(value: Any, results: Dict[str, Any]) -> tuple[Any, 
     return substituted_text, unresolved
 
 
-async def _execute_planned_tool(tool_call, user_id: str, request_id: str, session_id: str, original_params: dict = None):
+async def _execute_planned_tool(tool_call, user_id: str, request_id: str, trace_id: str, original_params: dict = None):
     logger.info(f"[{request_id}] Executing tool {tool_call.name} with params: {tool_call.params}")
-    emit_trace_event(session_id, f"{request_id}-{tool_call.name}", "running", node_type="mcp_tool", name=tool_call.name, inputs=tool_call.params, meta={"tool_name": tool_call.name, "original_params": original_params or tool_call.params})
+    emit_trace_event(trace_id, f"{request_id}-{tool_call.name}", "running", node_type="mcp_tool", name=tool_call.name, inputs=tool_call.params, meta={"tool_name": tool_call.name, "original_params": original_params or tool_call.params})
     t0 = time.perf_counter()
     schema_tool = ToolCall(tool=tool_call.name, arguments=tool_call.params)
     result = await execute_tool(
@@ -247,10 +247,10 @@ async def _execute_planned_tool(tool_call, user_id: str, request_id: str, sessio
     )
     result._duration_ms = (time.perf_counter() - t0) * 1000
     if getattr(result, "success", False):
-        emit_trace_event(session_id, f"{request_id}-{tool_call.name}", "success", node_type="mcp_tool", name=tool_call.name, outputs=result.data, latency=result._duration_ms)
+        emit_trace_event(trace_id, f"{request_id}-{tool_call.name}", "success", node_type="mcp_tool", name=tool_call.name, outputs=result.data, latency=result._duration_ms)
     else:
         err = getattr(result, "error", "Tool failed")
-        emit_trace_event(session_id, f"{request_id}-{tool_call.name}", "failed", node_type="mcp_tool", name=tool_call.name, error=err, latency=result._duration_ms)
+        emit_trace_event(trace_id, f"{request_id}-{tool_call.name}", "failed", node_type="mcp_tool", name=tool_call.name, error=err, latency=result._duration_ms)
     return result
 
 
@@ -284,7 +284,7 @@ def build_pipeline_graph(tools, results: dict, total_ms: float = 0.0) -> Pipelin
     return PipelineData(nodes=nodes, edges=edges, execution_time_ms=total_ms)
 
 
-async def _execute_planned_tools(tools, user_id: str, request_id: str, session_id: str) -> tuple[Dict[str, Any], Dict[str, float]]:
+async def _execute_planned_tools(tools, user_id: str, request_id: str, trace_id: str) -> tuple[Dict[str, Any], Dict[str, float]]:
     if not tools:
         return {}, {}
 
@@ -333,7 +333,7 @@ async def _execute_planned_tools(tools, user_id: str, request_id: str, session_i
                 type(tool_call)(name=tool_call.name, params=resolved_params),
                 user_id,
                 request_id,
-                session_id,
+                trace_id,
                 original_params=tool_call.params
             )
             dur = getattr(result, '_duration_ms', 0.0)
@@ -361,7 +361,7 @@ async def _execute_planned_tools(tools, user_id: str, request_id: str, session_i
                 type(tool_call)(name=tool_call.name, params=resolved_params),
                 user_id,
                 request_id,
-                session_id,
+                trace_id,
                 original_params=tool_call.params
             )
 
@@ -429,16 +429,16 @@ async def simulate_failure(execution_id: str, payload: dict):
 @app.post("/chat")
 async def chat_endpoint(chat_request: ChatRequest, request: Request):
     session_id = chat_request.session_id or str(uuid.uuid4())
-    request_id = request.headers.get("X-Request-Id", session_id)
+    request_id = request.headers.get("X-Request-Id") or str(uuid.uuid4())
     user_id = request.headers.get("X-User-Id") or chat_request.user_id or chat_request.gmail_user_id or "anonymous"
     wall_start = time.perf_counter()
-
-    init_trace(session_id)
-    trace = ExecutionTrace(steps=[], status="running")
 
     query = _get_user_query(chat_request)
     if not query:
         raise HTTPException(status_code=400, detail="Query is required")
+
+    init_trace(request_id, query=query)
+    trace = ExecutionTrace(steps=[], status="running")
 
     logger.info(f"[{request_id}] Chat query from {user_id}: {query}")
 
@@ -454,17 +454,17 @@ async def chat_endpoint(chat_request: ChatRequest, request: Request):
             )
         )
 
-        emit_trace_event(session_id, f"{request_id}-planner", "running", node_type="planner", name="Plan Tools")
+        emit_trace_event(request_id, f"{request_id}-planner", "running", node_type="planner", name="Plan Tools")
         plan_dict = await app.state.groq.plan_tools(query=query, tool_registry=planning_payload)
         plan = OrchestratorRequest(**plan_dict)
-        emit_trace_event(session_id, f"{request_id}-planner", "success", node_type="planner", name="Plan Tools", outputs=plan_dict)
+        emit_trace_event(request_id, f"{request_id}-planner", "success", node_type="planner", name="Plan Tools", outputs=plan_dict)
 
         trace.steps[-1].status = "success"
         trace.steps[-1].details = plan.reasoning
 
         logger.info(f"[{request_id}] Groq plan: {plan_dict}")
 
-        results, timings = await _execute_planned_tools(plan.tools, user_id, request_id, session_id)
+        results, timings = await _execute_planned_tools(plan.tools, user_id, request_id, request_id)
 
         for tool_call in plan.tools:
             result_value = results.get(tool_call.name, {})
@@ -478,13 +478,13 @@ async def chat_endpoint(chat_request: ChatRequest, request: Request):
                 )
             )
 
-        emit_trace_event(session_id, f"{request_id}-synthesis", "running", node_type="synthesis", name="Synthesize Response")
+        emit_trace_event(request_id, f"{request_id}-synthesis", "running", node_type="synthesis", name="Synthesize Response")
         final_response = await app.state.groq.synthesize_response(
             original_query=query,
             tool_results=results,
             reasoning=plan.reasoning,
         )
-        emit_trace_event(session_id, f"{request_id}-synthesis", "success", node_type="synthesis", name="Synthesize Response", outputs={"response": final_response})
+        emit_trace_event(request_id, f"{request_id}-synthesis", "success", node_type="synthesis", name="Synthesize Response", outputs={"response": final_response})
 
         trace.steps.append(
             TraceStep(
